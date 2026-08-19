@@ -1,0 +1,16 @@
+# Pulled drive logs — can contain SSIDs, MAC addresses and location traces.
+# NEVER commit these to a public repo.
+drive-logs/
+*.csv
+logcat*.txt
+*.png
+!docs/img/*.png
+
+# Local device config
+config.local.ps1
+.env
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
