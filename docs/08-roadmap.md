@@ -1,4 +1,4 @@
-# 08 — Roadmap
+# 08 - Roadmap
 
 Where this goes next. The current build is a display; the interesting question is what else a permanently-mounted, powered Android device in a car is good for.
 
@@ -21,7 +21,7 @@ A fifth appears as soon as recording enters the picture:
 
 ---
 
-## Next up — smart dash cam
+## Next up - smart dash cam
 
 The tablet is already mounted facing forward, powered, and running an Android device with a camera and GPS. That is most of a dash cam already. What is missing is software that behaves like one.
 
@@ -82,12 +82,12 @@ flowchart TB
 
 **Power loss.** Segment-based writing limits the damage, but the failure needs testing deliberately, not discovered after an incident.
 
-**Which app.** Existing open-source dash cam apps may cover this without writing anything. Worth surveying first — this project's philosophy is to configure existing FOSS rather than build.
+**Which app.** Existing open-source dash cam apps may cover this without writing anything. Worth surveying first - this project's philosophy is to configure existing FOSS rather than build.
 
 ### Evaluation plan
 
 1. Measure whether simultaneous record + project is even possible
-2. Thermal test — one hour, sustained, in the sun
+2. Thermal test - one hour, sustained, in the sun
 3. Survey existing FOSS dash cam apps against the requirements table above
 4. Only then decide between configure, contribute upstream, or build
 
@@ -99,9 +99,9 @@ flowchart TB
 GPS track, duration, and route per drive. The Bluetooth trigger already marks drive boundaries cleanly, so segmentation is free. Mostly a question of what is worth storing and for how long.
 
 ### Vehicle telemetry via OBD-II
-A Bluetooth OBD-II adapter exposes engine and diagnostic data. Interesting for a camping and overlanding use case — coolant temperature, battery voltage, live fuel consumption.
+A Bluetooth OBD-II adapter exposes engine and diagnostic data. Interesting for a camping and overlanding use case - coolant temperature, battery voltage, live fuel consumption.
 
-**Complication:** the phone's Bluetooth is already carrying A2DP to the audio dongle. Adding a data profile alongside audio needs testing — Bluetooth bandwidth and profile coexistence are both real constraints, and audio must not degrade.
+**Complication:** the phone's Bluetooth is already carrying A2DP to the audio dongle. Adding a data profile alongside audio needs testing - Bluetooth bandwidth and profile coexistence are both real constraints, and audio must not degrade.
 
 ### Camera integration
 The vehicle already has camera displays on the 12 V rail. Whether their feeds can reach the tablet depends entirely on their output format. Analogue composite needs a capture device; IP cameras would be straightforward.
@@ -133,12 +133,12 @@ The most valuable contribution right now is **different hardware**. This build i
 
 Especially wanted:
 
-- **Non-Samsung phones** — the STA+AP channel-forcing behaviour may differ by vendor, and that is the worst bug in the system
-- **A tablet with a cellular modem** hosting the hotspot itself — would sidestep the channel collision entirely. This is the most interesting untested idea in the whole project.
-- **Other head units** — different AUX behaviour, different noise profiles
+- **Non-Samsung phones** - the STA+AP channel-forcing behaviour may differ by vendor, and that is the worst bug in the system
+- **A tablet with a cellular modem** hosting the hotspot itself - would sidestep the channel collision entirely. This is the most interesting untested idea in the whole project.
+- **Other head units** - different AUX behaviour, different noise profiles
 - **Whether record-while-projecting works** on any device at all
 
-Open an issue with your hardware and what happened. Include scrubbed diagnostics if you have them — see [06 — Diagnostics](06-diagnostics.md).
+Open an issue with your hardware and what happened. Include scrubbed diagnostics if you have them - see [06 - Diagnostics](06-diagnostics.md).
 
 ---
 

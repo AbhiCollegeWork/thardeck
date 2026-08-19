@@ -1,14 +1,14 @@
 {
   "$comment": "Document register. The build pipeline reads this to produce controlled PDFs; revision history for each document is derived from git history of the source file.",
-  "project": "CarDeck",
-  "subtitle": "A DIY wireless Android Auto head unit",
+  "project": "Thar Deck",
+  "subtitle": "A wireless Android Auto head unit for a 2016 Thar",
   "documentSet": "Technical Documentation",
   "classification": "Public",
   "license": "MIT",
-  "repository": "https://github.com/USERNAME/cardeck",
+  "repository": "https://github.com/USERNAME/thardeck",
   "documents": [
     {
-      "docId": "CD-000",
+      "docId": "TD-000",
       "file": "../README.md",
       "title": "Overview",
       "subtitle": "System introduction, bill of materials and project status",
@@ -16,7 +16,7 @@
       "audience": "All readers"
     },
     {
-      "docId": "CD-001",
+      "docId": "TD-001",
       "file": "01-architecture.md",
       "title": "Architecture",
       "subtitle": "System design, network topology and failure analysis",
@@ -24,7 +24,7 @@
       "audience": "Implementers, reviewers"
     },
     {
-      "docId": "CD-002",
+      "docId": "TD-002",
       "file": "02-hardware-spec.md",
       "title": "Hardware Specification",
       "subtitle": "Component register and measured performance baselines",
@@ -32,7 +32,7 @@
       "audience": "Implementers"
     },
     {
-      "docId": "CD-003",
+      "docId": "TD-003",
       "file": "03-setup-guide.md",
       "title": "Setup Guide",
       "subtitle": "Build and commissioning manual",
@@ -40,7 +40,7 @@
       "audience": "Installers"
     },
     {
-      "docId": "CD-004",
+      "docId": "TD-004",
       "file": "04-audio-chain.md",
       "title": "Audio Chain",
       "subtitle": "Signal path, ground-loop analysis and equalisation",
@@ -48,7 +48,7 @@
       "audience": "Implementers"
     },
     {
-      "docId": "CD-005",
+      "docId": "TD-005",
       "file": "05-protocol-notes.md",
       "title": "Protocol Notes",
       "subtitle": "Reverse-engineered wireless projection behaviour",
@@ -57,7 +57,7 @@
       "note": "Version-sensitive. Observed behaviour, not a stable interface contract."
     },
     {
-      "docId": "CD-006",
+      "docId": "TD-006",
       "file": "06-diagnostics.md",
       "title": "Diagnostics",
       "subtitle": "Instrumentation, capture tooling and data interpretation",
@@ -65,7 +65,7 @@
       "audience": "Implementers, maintainers"
     },
     {
-      "docId": "CD-007",
+      "docId": "TD-007",
       "file": "07-troubleshooting.md",
       "title": "Troubleshooting",
       "subtitle": "Fault register, root causes and documented dead ends",
@@ -73,7 +73,7 @@
       "audience": "All readers"
     },
     {
-      "docId": "CD-008",
+      "docId": "TD-008",
       "file": "08-roadmap.md",
       "title": "Roadmap",
       "subtitle": "Planned work and design constraints for future features",
@@ -81,5 +81,6 @@
       "audience": "Contributors",
       "note": "Forward-looking. Nothing described here is implemented or validated."
     }
-  ]
+  ],
+  "filePrefix": "TharDeck"
 }

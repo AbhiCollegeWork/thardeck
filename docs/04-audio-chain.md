@@ -1,4 +1,4 @@
-# 04 — Audio Chain
+# 04 - Audio Chain
 
 How sound gets from the phone to the speakers, why it picked up a beep along the way, and what fixing that beep cost.
 
@@ -18,7 +18,7 @@ The tablet outputs **no audio at all**. This is a design decision, not a limitat
 
 That third row is the decisive one. Because audio never traverses the Wi-Fi link, **no video failure can ever silence your navigation prompts or your phone call.** The screen can freeze, corrupt, or die completely and the car keeps working as a car. In a moving vehicle, that property is worth more than any convenience the alternative offers.
 
-**A trap on modern tablets:** many recent devices dropped analogue audio out over USB-C (accessory mode). They report `usb_headset` support, so it looks feasible, but it requires an *active* USB-C DAC — and since that port is also the charging port, you would additionally need a power-delivery passthrough hub. All to arrive at a worse outcome than the free option.
+**A trap on modern tablets:** many recent devices dropped analogue audio out over USB-C (accessory mode). They report `usb_headset` support, so it looks feasible, but it requires an *active* USB-C DAC - and since that port is also the charging port, you would additionally need a power-delivery passthrough hub. All to arrive at a worse outcome than the free option.
 
 ---
 
@@ -44,7 +44,7 @@ Two observations cracked it:
 1. **Disconnecting the Bluetooth interior LED strips silenced the beep completely.**
 2. **The beep's character changed with LED colour and brightness.**
 
-That second one is the fingerprint of **PWM dimming noise**. LED controllers dim by switching the supply on and off very fast; changing brightness changes the duty cycle, changing colour changes which channels switch. That switching puts high-frequency hash onto the shared 12 V rail — and, critically, onto the shared **ground**.
+That second one is the fingerprint of **PWM dimming noise**. LED controllers dim by switching the supply on and off very fast; changing brightness changes the duty cycle, changing colour changes which channels switch. That switching puts high-frequency hash onto the shared 12 V rail - and, critically, onto the shared **ground**.
 
 ```mermaid
 flowchart TB
@@ -95,7 +95,7 @@ Transformer coupling is inherently high-pass. The impedance of the primary windi
 Cutoff frequency  ~  R_load / (2 * pi * L_primary)
 ```
 
-A large-cored transformer with high primary inductance passes down to 20 Hz cleanly. A transformer that fits inside a ₹300 dongle barrel does not — and its roll-off lands right in the range that carries the weight of music.
+A large-cored transformer with high primary inductance passes down to 20 Hz cleanly. A transformer that fits inside a ₹300 dongle barrel does not - and its roll-off lands right in the range that carries the weight of music.
 
 | Frequency | Direct | Through a cheap isolator | Loss |
 |---|---|---|---|
@@ -107,7 +107,7 @@ A large-cored transformer with high primary inductance passes down to 20 Hz clea
 | 250 Hz | 0 dB | −1 dB | marginal |
 | 500 Hz + | 0 dB | 0 dB | transparent |
 
-*Illustrative shape, not a measured curve — the exact corner depends on your specific isolator. The character is what matters: everything below roughly 250 Hz loses level, and it gets worse the lower you go.*
+*Illustrative shape, not a measured curve - the exact corner depends on your specific isolator. The character is what matters: everything below roughly 250 Hz loses level, and it gets worse the lower you go.*
 
 This is the **expected failure mode of cheap isolators** and worth knowing before you buy: you are trading low end for silence.
 
@@ -115,15 +115,15 @@ This is the **expected failure mode of cheap isolators** and worth knowing befor
 
 ## Recovering the bass
 
-Three levers, in order of effectiveness. Do them in this order — the free mechanical ones first.
+Three levers, in order of effectiveness. Do them in this order - the free mechanical ones first.
 
 ### 1. Amplifier sensitivity (biggest single win)
 
 The isolator drops the signal *level* as well as the low frequencies. Turning up the amplifier's input sensitivity compensates for the level loss directly, in the analogue domain, before any of it matters.
 
-**Set Sensitivity toward the most-sensitive end** (0.3 V on a 0.3–5.0 V control).
+**Set Sensitivity toward the most-sensitive end** (0.3 V on a 0.3-5.0 V control).
 
-On compact amplified subwoofer units this is usually a **recessed screwdriver trim-pot**, not a knob, and it is genuinely easy to miss — look next to the phase switch. Check your unit's manual: these controls are often documented even when they are not obvious on the enclosure.
+On compact amplified subwoofer units this is usually a **recessed screwdriver trim-pot**, not a knob, and it is genuinely easy to miss - look next to the phase switch. Check your unit's manual: these controls are often documented even when they are not obvious on the enclosure.
 
 ### 2. Low-pass filter
 
@@ -160,7 +160,7 @@ Apply the inverse of the roll-off curve. A shelf that lifts the lowest bands har
 
 ## The car-only EQ profile
 
-**A global EQ change is the wrong answer.** That bass boost exists to cancel a specific transformer in a specific car. On your headphones it is just wrong — muddy, bloated, fatiguing.
+**A global EQ change is the wrong answer.** That bass boost exists to cancel a specific transformer in a specific car. On your headphones it is just wrong - muddy, bloated, fatiguing.
 
 The EQ must apply **only when the car audio device is connected**, and revert the instant it disconnects.
 
@@ -180,7 +180,7 @@ stateDiagram-v2
 
     note right of Car
         Trigger is the specific car
-        device — not "any Bluetooth",
+        device - not "any Bluetooth",
         not "driving mode".
     end note
 ```
@@ -191,22 +191,22 @@ Most Android automation platforms can express this; the vendor routine engine is
 
 **Settings → Modes and Routines → Routines tab → `+`**
 
-**The trigger — "If":**
+**The trigger - "If":**
 1. Tap **Add what will trigger this routine**
 2. Under *Connections*, choose **Bluetooth device**
-3. Tap **Device — None selected**
-4. Tick **your car audio dongle only** — verify nothing else is ticked
+3. Tap **Device - None selected**
+4. Tick **your car audio dongle only** - verify nothing else is ticked
 5. **OK**
 6. Leave the radio on **Connected**
 7. **Done**
 
-**The action — "Then":**
+**The action - "Then":**
 1. Tap **Add what this routine will do**
 2. **Sounds and vibration** → **Equaliser**
 3. Select **Custom** → **Done**
 
 **Save:**
-- Confirm the editor shows a **"When routine ends"** section — that is the automatic revert, and it is what protects your other devices. Do not remove it.
+- Confirm the editor shows a **"When routine ends"** section - that is the automatic revert, and it is what protects your other devices. Do not remove it.
 - Tap **Save** and name it.
 
 > **Known automation quirk:** the routine editor's Save button rejects synthetic input events. Scripted setup via `adb input tap` will compose the routine correctly and then silently fail to save it. **Tap Save with your finger.** Four different coordinates were tried during this build; every other control in the same dialog responded and Save never did.
@@ -229,15 +229,15 @@ Three independent layers:
 
 ## The permanent fix
 
-The isolator treats the symptom. The disease is PWM noise on the 12 V rail, and it can be cured at the source — after which you can remove the isolator and get your bass back for free.
+The isolator treats the symptom. The disease is PWM noise on the 12 V rail, and it can be cured at the source - after which you can remove the isolator and get your bass back for free.
 
 Options, cheapest first:
 
 | Approach | Cost | Effect |
 |---|---|---|
-| **Filter at the noise source** — ferrite choke + 1000 µF electrolytic + 0.1 µF ceramic across the LED controller's 12 V input | ~₹150 | Attacks the actual cause. Try this first. |
+| **Filter at the noise source** - ferrite choke + 1000 µF electrolytic + 0.1 µF ceramic across the LED controller's 12 V input | ~₹150 | Attacks the actual cause. Try this first. |
 | **Re-feed the LED controller** from its own fused line and ground, direct to the battery | wiring only | Removes the shared path entirely |
-| **Isolated DC-DC converter** for the audio dongle (e.g. B0505S module) | ~₹300 | Galvanic isolation *in the power domain*, where it belongs — no audio transformer, no bass loss |
+| **Isolated DC-DC converter** for the audio dongle (e.g. B0505S module) | ~₹300 | Galvanic isolation *in the power domain*, where it belongs - no audio transformer, no bass loss |
 | **USB isolator** (e.g. ADuM3160-based) | ~₹1000 | Same principle, pre-packaged |
 
 The isolated DC-DC is the elegant answer: it puts the isolation barrier in the **power** path instead of the **audio** path. The ground loop is broken exactly where it forms, the audio signal is never transformer-coupled at all, and the bass is untouched. If you are buying anything, buy that rather than a better audio isolator.
@@ -256,7 +256,7 @@ flowchart TD
     BATTERY -->|Yes| GROUND["Ground loop confirmed"]
 
     GROUND --> ACCESSORY{"Disconnect 12 V accessories<br/>one at a time.<br/>Does one silence it?"}
-    ACCESSORY -->|Yes| CULPRIT{"Does the noise change with<br/>that device's settings —<br/>brightness, speed, mode?"}
+    ACCESSORY -->|Yes| CULPRIT{"Does the noise change with<br/>that device's settings -<br/>brightness, speed, mode?"}
     ACCESSORY -->|No| GENERAL["General rail noise<br/>→ isolate the audio supply"]
 
     CULPRIT -->|Yes| PWM["PWM switching noise.<br/>Filter at that device,<br/>or give it its own supply."]
@@ -272,4 +272,4 @@ flowchart TD
 
 ---
 
-**Next:** [05 — Protocol Notes](05-protocol-notes.md) · [07 — Troubleshooting](07-troubleshooting.md)
+**Next:** [05 - Protocol Notes](05-protocol-notes.md) · [07 - Troubleshooting](07-troubleshooting.md)

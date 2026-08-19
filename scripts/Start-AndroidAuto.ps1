@@ -1,4 +1,4 @@
-# Start-AndroidAuto.ps1 — one-shot pipeline: project S25 Ultra's Android Auto onto the Tab S9 FE+
+# Start-AndroidAuto.ps1 - one-shot pipeline: project S25 Ultra's Android Auto onto the Tab S9 FE+
 # Usage: right-click > Run with PowerShell (or: powershell -ExecutionPolicy Bypass -File Start-AndroidAuto.ps1)
 # Requires: both devices on the same Wi-Fi as this PC, wireless debugging ON (paired already).
 

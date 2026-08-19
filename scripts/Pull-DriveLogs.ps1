@@ -1,4 +1,4 @@
-# Pull-DriveLogs.ps1 — retrieve the drive capture from the Tab, summarise it, then clean the device.
+# Pull-DriveLogs.ps1 - retrieve the drive capture from the Tab, summarise it, then clean the device.
 # Device-side files are deleted ONLY after the local copy is verified.
 #
 #   powershell -ExecutionPolicy Bypass -File Pull-DriveLogs.ps1

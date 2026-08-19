@@ -1,4 +1,4 @@
-# Pulled drive logs — can contain SSIDs, MAC addresses and location traces.
+# Pulled drive logs - can contain SSIDs, MAC addresses and location traces.
 # NEVER commit these to a public repo.
 drive-logs/
 *.csv

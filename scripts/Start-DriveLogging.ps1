@@ -1,6 +1,6 @@
-# Start-DriveLogging.ps1 — arm persistent capture on the Tab for the next drive(s).
+# Start-DriveLogging.ps1 - arm persistent capture on the Tab for the next drive(s).
 # Survives adb disconnect, screen off, and the tab moving to the car hotspot.
-# Does NOT survive a tab reboot — re-run after any reboot.
+# Does NOT survive a tab reboot - re-run after any reboot.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File Start-DriveLogging.ps1
 # Later:  powershell -ExecutionPolicy Bypass -File Pull-DriveLogs.ps1

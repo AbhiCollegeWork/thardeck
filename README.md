@@ -1,10 +1,14 @@
-# CarDeck
+# Thar Deck
 
-**A wireless Android Auto head unit built from a spare Android tablet — no head unit, no subscription, no proprietary software.**
+**A wireless Android Auto head unit built from a spare Android tablet. No head unit, no subscription, no proprietary software.**
 
-Most cars either ship with a locked-down infotainment screen or nothing at all. Aftermarket Android Auto head units cost real money and mean pulling your dashboard apart. CarDeck is the other route: a tablet you already own, suction-mounted, receiving Android Auto wirelessly from your phone — while your car's own stereo keeps playing the audio.
+This started with a 2016 Mahindra Thar, which came with essentially nothing: no screen, no navigation, no Bluetooth, no Android Auto. The factory options were a single-DIN slot and your own sense of direction.
 
-This repo is the complete engineering record of a working installation: architecture, exact settings, the protocol details that aren't documented anywhere else, diagnostic tooling, and every dead end so you don't have to walk down them.
+Aftermarket Android Auto head units cost real money and mean pulling a dashboard apart. Thar Deck is the other route: a tablet you already own, suction-mounted, receiving Android Auto wirelessly from your phone, while the car stereo keeps playing the audio.
+
+It is not Thar-specific. Any vehicle with a 3.5 mm AUX input and a 12 V socket can run this. The Thar is simply the vehicle it was built and debugged in, and a car that shipped with nothing is a good proof that the approach needs nothing from the car.
+
+This repo is the complete engineering record of a working installation: architecture, exact settings, the protocol details that are not documented anywhere else, diagnostic tooling, and every dead end so you do not have to walk down them.
 
 > **Status:** Daily-driven and stable. Video, touch, navigation, media control and a car-only automatic audio profile all work. See [Known Limitations](#known-limitations).
 
@@ -14,19 +18,19 @@ This repo is the complete engineering record of a working installation: architec
 
 ```mermaid
 flowchart LR
-    subgraph PHONE["📱 Phone — the brain"]
+    subgraph PHONE["📱 Phone - the brain"]
         AA["Android Auto<br/>(gearhead)"]
         WH["AA Wireless Helper"]
         HS["Wi-Fi Hotspot<br/>(SoftAP)"]
         BT["Bluetooth A2DP"]
     end
 
-    subgraph TAB["📺 Tablet — the screen"]
+    subgraph TAB["📺 Tablet - the screen"]
         OHU["Open Headunit<br/>receiver :5288"]
         SCR["Display + touch"]
     end
 
-    subgraph CAR["🚗 Car — the sound"]
+    subgraph CAR["🚗 Car - the sound"]
         DGL["BT→AUX dongle"]
         ISO["Ground-loop<br/>isolator"]
         AMP["Stereo → amp → speakers"]
@@ -43,7 +47,7 @@ flowchart LR
     style CAR fill:#5f3a1e,color:#fff
 ```
 
-**The key design decision:** video and audio travel on *completely separate paths*. The tablet gets picture and touch over Wi-Fi; the car speakers get sound over Bluetooth, straight from the phone. The tablet never plays a sound. This is deliberate — see [Why audio is split off](docs/04-audio-chain.md#why-the-tablet-is-muted).
+**The key design decision:** video and audio travel on *completely separate paths*. The tablet gets picture and touch over Wi-Fi; the car speakers get sound over Bluetooth, straight from the phone. The tablet never plays a sound. This is deliberate - see [Why audio is split off](docs/04-audio-chain.md#why-the-tablet-is-muted).
 
 ---
 
@@ -51,7 +55,7 @@ flowchart LR
 
 | # | Item | Role | Approx. cost |
 |---|------|------|-------------|
-| 1 | Android phone with Android Auto | Source — runs Maps, Spotify, calls | *owned* |
+| 1 | Android phone with Android Auto | Source - runs Maps, Spotify, calls | *owned* |
 | 2 | Android tablet, Wi-Fi only is fine | Display + touchscreen | *owned / used* |
 | 3 | [Open Headunit](https://github.com/andreknieriem/open-headunit) (FOSS) | The receiver app | free |
 | 4 | AA Wireless Helper | Phone-side discovery | free |
@@ -69,30 +73,30 @@ The reference build used a Galaxy Tab S9 FE+ and a Galaxy S25 Ultra, but nothing
 
 | Document | What's in it |
 |---|---|
-| **[01 — Architecture](docs/01-architecture.md)** | System diagrams, network topology, connection sequence, state machine |
-| **[02 — Hardware Specs](docs/02-hardware-spec.md)** | Every component, every measured number |
-| **[03 — Setup Guide](docs/03-setup-guide.md)** | 👈 **Start here.** Step-by-step build manual |
-| **[04 — Audio Chain](docs/04-audio-chain.md)** | Ground loops, isolators, and the car-only EQ profile |
-| **[05 — Protocol Notes](docs/05-protocol-notes.md)** | Reverse-engineered AA wireless internals |
-| **[06 — Diagnostics](docs/06-diagnostics.md)** | Drive logging, what the numbers mean |
-| **[07 — Troubleshooting](docs/07-troubleshooting.md)** | Symptom → root cause → fix, including dead ends |
-| **[08 — Roadmap](docs/08-roadmap.md)** | Smart dash cam and what comes next |
+| **[01 - Architecture](docs/01-architecture.md)** | System diagrams, network topology, connection sequence, state machine |
+| **[02 - Hardware Specs](docs/02-hardware-spec.md)** | Every component, every measured number |
+| **[03 - Setup Guide](docs/03-setup-guide.md)** | 👈 **Start here.** Step-by-step build manual |
+| **[04 - Audio Chain](docs/04-audio-chain.md)** | Ground loops, isolators, and the car-only EQ profile |
+| **[05 - Protocol Notes](docs/05-protocol-notes.md)** | Reverse-engineered AA wireless internals |
+| **[06 - Diagnostics](docs/06-diagnostics.md)** | Drive logging, what the numbers mean |
+| **[07 - Troubleshooting](docs/07-troubleshooting.md)** | Symptom → root cause → fix, including dead ends |
+| **[08 - Roadmap](docs/08-roadmap.md)** | Smart dash cam and what comes next |
 
-Also: [CHANGELOG.md](CHANGELOG.md) · [build/README.md](build/README.md) — the PDF pipeline · [docs/manifest.json](docs/manifest.json) — the document register
+Also: [CHANGELOG.md](CHANGELOG.md) · [build/README.md](build/README.md) - the PDF pipeline · [docs/manifest.json](docs/manifest.json) - the document register
 
 ---
 
 ## Documentation as PDF
 
-Every document is also issued as a controlled PDF — cover page, document ID, revision history derived from git, and an exact table of contents. Diagrams stay vector, so they are sharp at any print size.
+Every document is also issued as a controlled PDF - cover page, document ID, revision history derived from git, and an exact table of contents. Diagrams stay vector, so they are sharp at any print size.
 
 ```bash
 cd build && npm install && npm run build
 ```
 
-Output in `dist/`: nine individual documents plus `CarDeck-Technical-Manual-v1.0.0.pdf`, all of it bound as one 81-page volume. Pre-built PDFs are attached to each [release](../../releases).
+Output in `dist/`: nine individual documents plus `Thar Deck-Technical-Manual-v1.0.0.pdf`, all of it bound as one 81-page volume. Pre-built PDFs are attached to each [release](../../releases).
 
-How the pipeline works — including why the page numbers are exact rather than estimated — is in [build/README.md](build/README.md).
+How the pipeline works - including why the page numbers are exact rather than estimated - is in [build/README.md](build/README.md).
 
 ---
 
@@ -106,7 +110,7 @@ If you just want it working and don't care why:
 4. On the phone: hotspot **Band = 2.4 GHz**, and pair the Bluetooth audio dongle.
 5. In the car: turn on the hotspot, open Open Headunit, tap **Wi-Fi**.
 
-Then read [03 — Setup Guide](docs/03-setup-guide.md) properly, because steps 2–4 are each there for a reason that cost a drive to learn.
+Then read [03 - Setup Guide](docs/03-setup-guide.md) properly, because steps 2-4 are each there for a reason that cost a drive to learn.
 
 ---
 
@@ -114,14 +118,14 @@ Then read [03 — Setup Guide](docs/03-setup-guide.md) properly, because steps 2
 
 Every one of these presents as "it just doesn't work" with no useful error message. All three are solved in this repo.
 
-### 1. Discovery deadlock — the phone never finds the tablet
+### 1. Discovery deadlock - the phone never finds the tablet
 Both sides sit in "SEARCHING" forever. The cause is a **discovery protocol mismatch**: the tablet defaults to *Google Nearby* while the helper uses *Shared Wi-Fi / Hotspot*, so both ends listen and neither advertises. One setting fixes it. → [Troubleshooting §1](docs/07-troubleshooting.md#1-the-phone-never-finds-the-tablet)
 
-### 2. Video corruption — the screen smears into garbage while driving
-Macroblock smearing that made the display unreadable at highway speed. The instinct is "weak signal" or "bad decoder". It was neither — signal was **−25 dBm, point-blank** while throughput collapsed to **1–6 Mbps**. The real cause: single-radio **STA+AP channel collision**. The phone was serving its hotspot on *the exact same channel* as the home Wi-Fi it was still joined to. → [Troubleshooting §2](docs/07-troubleshooting.md#2-video-corrupts-into-macroblocks)
+### 2. Video corruption - the screen smears into garbage while driving
+Macroblock smearing that made the display unreadable at highway speed. The instinct is "weak signal" or "bad decoder". It was neither - signal was **−25 dBm, point-blank** while throughput collapsed to **1-6 Mbps**. The real cause: single-radio **STA+AP channel collision**. The phone was serving its hotspot on *the exact same channel* as the home Wi-Fi it was still joined to. → [Troubleshooting §2](docs/07-troubleshooting.md#2-video-corrupts-into-macroblocks)
 
-### 3. Flat bass — fixing the noise broke the sound
-A ground-loop isolator cured a PWM whine from LED strips on the 12 V rail (100% → 5%) but its undersized transformer rolled off the low end. Fixed with a compensating EQ curve that is **scoped to the car only** — it must not follow you to your headphones. → [Audio Chain](docs/04-audio-chain.md)
+### 3. Flat bass - fixing the noise broke the sound
+A ground-loop isolator cured a PWM whine from LED strips on the 12 V rail (100% → 5%) but its undersized transformer rolled off the low end. Fixed with a compensating EQ curve that is **scoped to the car only** - it must not follow you to your headphones. → [Audio Chain](docs/04-audio-chain.md)
 
 ---
 
@@ -139,14 +143,14 @@ A ground-loop isolator cured a PWM whine from LED strips on the 12 V rail (100% 
 
 ## Contributing
 
-Different phone, different tablet, different car — results will vary, and that's exactly the data this project needs. Please open an issue with your hardware combination and what did or didn't work. Diagnostic captures are especially welcome; see [06 — Diagnostics](docs/06-diagnostics.md) for the tooling.
+Different phone, different tablet, different car - results will vary, and that's exactly the data this project needs. Please open an issue with your hardware combination and what did or didn't work. Diagnostic captures are especially welcome; see [06 - Diagnostics](docs/06-diagnostics.md) for the tooling.
 
 **Scrub your logs before posting.** They contain SSIDs, BSSIDs and MAC addresses.
 
 ## Safety
 
-This is a screen in a moving vehicle. Mount it where it does not block your view or sit in an airbag deployment path, set it up while parked, and check your local law on screen placement. If the picture corrupts while you're driving, **ignore it and pull over** — don't debug at speed.
+This is a screen in a moving vehicle. Mount it where it does not block your view or sit in an airbag deployment path, set it up while parked, and check your local law on screen placement. If the picture corrupts while you're driving, **ignore it and pull over** - don't debug at speed.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Not affiliated with Google or any device manufacturer. "Android Auto" is a trademark of Google LLC.
+MIT - see [LICENSE](LICENSE). Not affiliated with Google or any device manufacturer. "Android Auto" is a trademark of Google LLC.

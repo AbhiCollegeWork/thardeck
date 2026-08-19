@@ -1,4 +1,4 @@
-# 06 — Diagnostics
+# 06 - Diagnostics
 
 Problems in this system happen **while you are driving** and vanish by the time you are parked and holding a laptop. The tooling here exists because of that: it captures data unattended, survives everything a drive throws at it, and cleans up after itself.
 
@@ -6,7 +6,7 @@ Problems in this system happen **while you are driving** and vanish by the time 
 
 ## Why logcat alone is not enough
 
-The video corruption in this build was invisible in app logs. The decoder never errored — it was faithfully decoding a stream that was arriving damaged. Nothing upstream complained either.
+The video corruption in this build was invisible in app logs. The decoder never errored - it was faithfully decoding a stream that was arriving damaged. Nothing upstream complained either.
 
 What actually diagnosed it was a **Wi-Fi link time series**: signal strength and throughput sampled every 10 seconds, alongside whether a projection session was live. The corruption showed up instantly as a signature that logcat could never have shown:
 
@@ -52,17 +52,17 @@ flowchart LR
 ### 1. Rotating logcat
 
 ```
-/sdcard/Download/aa-diag/logcat.txt   — all buffers, threadtime format
+/sdcard/Download/aa-diag/logcat.txt - all buffers, threadtime format
 ```
 
-Rotation is deliberately sized. Measured idle rate is roughly **7 MB/hour**, so the original 8 × 16 MB = 128 MB ceiling held only about 18 hours — too short to catch an intermittent problem across several days. Bumped to **40 × 16 MB = 640 MB**, roughly 3–4 days.
+Rotation is deliberately sized. Measured idle rate is roughly **7 MB/hour**, so the original 8 × 16 MB = 128 MB ceiling held only about 18 hours - too short to catch an intermittent problem across several days. Bumped to **40 × 16 MB = 640 MB**, roughly 3-4 days.
 
 The ceiling is a hard cap: rotation means it **cannot grow unbounded** even if you forget it entirely.
 
 ### 2. Wi-Fi link sampler
 
 ```
-/sdcard/Download/aa-diag/wifi.csv   — one row per 10 seconds
+/sdcard/Download/aa-diag/wifi.csv - one row per 10 seconds
 ```
 
 ```
@@ -75,7 +75,7 @@ The session field comes from a direct socket-state read rather than any app log:
 EST=$(cat /proc/net/tcp /proc/net/tcp6 | awk '$2 ~ /14A8$/ && $4 == "01"' | wc -l)
 ```
 
-**UID-independent by design** — it survives app reinstalls and version changes, which log-scraping does not.
+**UID-independent by design** - it survives app reinstalls and version changes, which log-scraping does not.
 
 ---
 
@@ -115,12 +115,12 @@ MSYS_NO_PATHCONV=1 adb push aa-wifi-sampler.sh /data/local/tmp/
 
 ### Rx-collapse events
 
-Samples where throughput fell below 100 Mbps. **Cross-reference every one against its RSSI** — that pairing is the entire diagnosis:
+Samples where throughput fell below 100 Mbps. **Cross-reference every one against its RSSI** - that pairing is the entire diagnosis:
 
 | RSSI | Rx speed | Verdict |
 |---|---|---|
-| Strong (better than −60) | Collapsed | **Interference / contention** — check channels |
-| Weak (worse than −70) | Collapsed | **Range** — the tablet is too far, or shielded |
+| Strong (better than −60) | Collapsed | **Interference / contention** - check channels |
+| Weak (worse than −70) | Collapsed | **Range** - the tablet is too far, or shielded |
 | Strong | Healthy | Fine |
 
 ### Frequencies seen
@@ -131,7 +131,7 @@ The tablet's associated frequency, over time.
 |---|---|
 | Same value as the phone's station link | ⚠️ **Co-channel collision.** The bug. |
 | 2.4 GHz (`24xx`) while the phone's AP is on 5 GHz | ✅ Band separation holding |
-| Changing frequently | Roaming between networks — investigate |
+| Changing frequently | Roaming between networks - investigate |
 
 Check it against the phone:
 ```bash
@@ -141,11 +141,11 @@ adb -s <PHONE> shell dumpsys wifi | grep -i frequency
 
 ### Session count
 
-Samples where a projection session was ESTABLISHED. Compare against your actual drive time — a large gap means sessions are dropping and re-establishing.
+Samples where a projection session was ESTABLISHED. Compare against your actual drive time - a large gap means sessions are dropping and re-establishing.
 
 ### Decoder errors
 
-Greps for `MediaCodec` errors and codec exceptions. **Usually zero even during visible corruption** — the decoder is faithfully decoding a corrupt stream. Zero here plus visible smearing points firmly at the transport, not the decoder.
+Greps for `MediaCodec` errors and codec exceptions. **Usually zero even during visible corruption** - the decoder is faithfully decoding a corrupt stream. Zero here plus visible smearing points firmly at the transport, not the decoder.
 
 ---
 
@@ -183,7 +183,7 @@ mWakefulness=Dozing
 oom_score_adj 900+   (cached)
 ```
 
-**And check `wakeupap` too.** An app with zero wakelocks logged 1177 device-wakeup events during this build. The wakelock list alone gives a false all-clear — see [Hardware Specs](02-hardware-spec.md#power--parked).
+**And check `wakeupap` too.** An app with zero wakelocks logged 1177 device-wakeup events during this build. The wakelock list alone gives a false all-clear - see [Hardware Specs](02-hardware-spec.md#power--parked).
 
 ---
 
@@ -208,7 +208,7 @@ Logging tools have a way of quietly eating storage forever. Countermeasures buil
 
 | Mechanism | Effect |
 |---|---|
-| Rotating logcat, `-n 40` | Hard 640 MB ceiling — cannot grow past it |
+| Rotating logcat, `-n 40` | Hard 640 MB ceiling - cannot grow past it |
 | Verified-then-delete on pull | Device cleared only after the local copy is confirmed complete |
 | Refuses to delete on a partial pull | A failed transfer never loses your data |
 | `Stop-DriveLogging.ps1` | Removes every file and the helper script, warns about un-pulled logs first |
@@ -221,4 +221,4 @@ powershell -ExecutionPolicy Bypass -File scripts/Stop-DriveLogging.ps1
 
 ---
 
-**Next:** [07 — Troubleshooting](07-troubleshooting.md)
+**Next:** [07 - Troubleshooting](07-troubleshooting.md)

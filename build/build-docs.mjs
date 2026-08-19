@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /* ============================================================================
- * CarDeck — documentation build pipeline
+ * Thar Deck - documentation build pipeline
  *
  * Markdown + Mermaid  ->  controlled, versioned PDF
  *
- *   - Mermaid diagrams are rendered to inline SVG (vector, not raster) by a
+ * - Mermaid diagrams are rendered to inline SVG (vector, not raster) by a
  *     headless Chromium, then typeset with the surrounding prose.
- *   - Revision history for each document is derived from git history of the
+ * - Revision history for each document is derived from git history of the
  *     source file. No hand-maintained revision tables to drift out of date.
- *   - Cross-document Markdown links are resolved to document IDs, so a
+ * - Cross-document Markdown links are resolved to document IDs, so a
  *     printed page can still be navigated.
- *   - Page numbers in each table of contents come from a pagination
+ * - Page numbers in each table of contents come from a pagination
  *     simulation that honours break-inside:avoid, not naive division.
  *
  * Usage:
@@ -95,7 +95,7 @@ function revisionHistory(relFile) {
   if (!raw) {
     return [{
       rev: 'A', date: BUILD.date, hash: BUILD.commit,
-      subject: 'Initial issue', author: '—',
+      subject: 'Initial issue', author: '-',
     }];
   }
   const commits = raw.split('\n').filter(Boolean).map((l) => {
@@ -165,7 +165,7 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const href = tokens[idx].attrGet('href') || '';
   if (/\.md($|#)/.test(href) && !/^https?:/.test(href)) {
     const base = path.basename(href.split('#')[0]);
-    const target = docIdByFile.get(base) || (base === 'README.md' ? 'CD-000' : null);
+    const target = docIdByFile.get(base) || (base === 'README.md' ? 'TD-000' : null);
     tokens[idx].attrSet('href', '#');
     tokens[idx].attrSet('class', 'xref');
     if (target) tokens[idx].attrSet('data-doc', target);
@@ -202,7 +202,7 @@ function classifyCallouts(html) {
   });
 }
 
-/** Strip the markdown navigation footer — meaningless in a bound document. */
+/** Strip the markdown navigation footer - meaningless in a bound document. */
 function stripNav(src) {
   return src.replace(/\n---\s*\n\s*\*\*(Next|Back to):\*\*.*$/s, '\n');
 }
@@ -213,44 +213,50 @@ const CSS = fs.readFileSync(path.join(__dirname, 'styles', 'print.css'), 'utf8')
 const MERMAID_JS = fs.readFileSync(
   path.join(__dirname, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), 'utf8');
 
+const INK = '#1e293b';
+
 const MERMAID_CONFIG = {
   startOnLoad: false,
   theme: 'base',
   securityLevel: 'loose',
-  fontFamily: '"Segoe UI", -apple-system, Helvetica, Arial, sans-serif',
+  fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
   themeVariables: {
     background: '#ffffff',
-    primaryColor: '#eef4fa',
-    primaryTextColor: '#12181f',
-    primaryBorderColor: '#0b5394',
-    lineColor: '#5b6570',
-    secondaryColor: '#f1f8f5',
-    tertiaryColor: '#f7f9fb',
+    primaryColor: '#e7ecf5',
+    primaryTextColor: INK,
+    primaryBorderColor: '#0f2863',
+    secondaryColor: '#f4f7f9',
+    tertiaryColor: '#ffffff',
+    lineColor: '#505050',
+    textColor: INK,
     fontSize: '13px',
-    nodeBorder: '#0b5394',
-    clusterBkg: '#fbfcfe',
-    clusterBorder: '#dde3ea',
+    nodeBorder: '#0f2863',
+    nodeTextColor: INK,
+    clusterBkg: '#ffffff',
+    clusterBorder: '#d8dee5',
     edgeLabelBackground: '#ffffff',
+    titleColor: INK,
     // sequence
-    actorBkg: '#eef4fa',
-    actorBorder: '#0b5394',
-    actorTextColor: '#12181f',
-    signalColor: '#3d4854',
-    signalTextColor: '#12181f',
-    noteBkgColor: '#fdf8ef',
-    noteBorderColor: '#9a5b0e',
-    noteTextColor: '#3d4854',
-    labelBoxBkgColor: '#eef4fa',
-    labelBoxBorderColor: '#0b5394',
+    actorBkg: '#e7ecf5',
+    actorBorder: '#0f2863',
+    actorTextColor: INK,
+    signalColor: '#505050',
+    signalTextColor: INK,
+    noteBkgColor: '#fdf7ef',
+    noteBorderColor: '#b45309',
+    noteTextColor: '#505050',
+    labelBoxBkgColor: '#e7ecf5',
+    labelBoxBorderColor: '#0f2863',
     // state
-    labelColor: '#12181f',
-    transitionColor: '#5b6570',
-    stateBkg: '#eef4fa',
-    stateBorder: '#0b5394',
+    labelColor: INK,
+    transitionColor: '#505050',
+    stateBkg: '#e7ecf5',
+    stateBorder: '#0f2863',
+    altBackground: '#f4f7f9',
   },
-  flowchart: { curve: 'basis', htmlLabels: true, padding: 14, nodeSpacing: 44, rankSpacing: 52, useMaxWidth: true },
-  sequence: { actorMargin: 44, boxMargin: 10, mirrorActors: false, useMaxWidth: true, wrap: true, width: 148 },
-  state: { useMaxWidth: true, padding: 14 },
+  flowchart: { curve: 'basis', htmlLabels: true, padding: 12, nodeSpacing: 40, rankSpacing: 46, useMaxWidth: true },
+  sequence: { actorMargin: 42, boxMargin: 10, mirrorActors: false, useMaxWidth: true, wrap: true, width: 148 },
+  state: { useMaxWidth: true, padding: 12 },
 };
 
 function coverHtml(doc, revs) {
@@ -259,8 +265,7 @@ function coverHtml(doc, revs) {
   const statusClass = doc.status.toLowerCase() === 'released' ? 'released' : 'draft';
   return `
 <section class="cover">
-  <div class="cover-rule"></div>
-  <div class="cover-project">${MANIFEST.project} — ${MANIFEST.subtitle}</div>
+  <div class="cover-project">${MANIFEST.project}</div>
   <div class="cover-set">${MANIFEST.documentSet}</div>
 
   <div class="cover-docid">${doc.docId}</div>
@@ -282,7 +287,7 @@ function coverHtml(doc, revs) {
     </div>
   </div>
 
-  <div class="revtable-label">Revision history${revs.length > shown.length ? ` — most recent ${shown.length} of ${revs.length}` : ''}</div>
+  <div class="revtable-label">Revision history${revs.length > shown.length ? ` - most recent ${shown.length} of ${revs.length}` : ''}</div>
   <table class="revtable">
     <thead><tr><th>Rev</th><th>Date</th><th>Change</th><th>Commit</th></tr></thead>
     <tbody>
@@ -343,17 +348,17 @@ async function renderInPage(page) {
      * and the original !important declarations win back during printing.
      */
     const TINT = {
-      '#1e3a5f': ['#dceaf7', '#0b5394'],   // structural / primary
-      '#3a3a5a': ['#e4e8f5', '#2f3f6b'],
-      '#2a2a3a': ['#eceef4', '#3d4854'],
-      '#1e5f3a': ['#dcf0e5', '#0e6f66'],   // verified / good
-      '#1e4a2e': ['#dcf0e5', '#0e6f66'],
-      '#3a5a3a': ['#e2f1e6', '#2f6b3f'],
-      '#5f3a1e': ['#f6e7d7', '#8a5320'],   // hardware / car
-      '#5f4a1e': ['#faedd4', '#9a5b0e'],   // caution
-      '#7a4020': ['#f8e3d4', '#9a5b0e'],
-      '#7a2020': ['#fbdede', '#9c2c2c'],   // fault
-      '#5a2020': ['#fbdede', '#9c2c2c'],
+      '#1e3a5f': ['#e7ecf5', '#0f2863'],   // structural / primary
+      '#3a3a5a': ['#eaecf4', '#3b4a72'],
+      '#2a2a3a': ['#eef0f3', '#4a5261'],
+      '#1e5f3a': ['#e8f3ec', '#15803d'],   // verified / good
+      '#1e4a2e': ['#e8f3ec', '#15803d'],
+      '#3a5a3a': ['#eaf2ec', '#2f6b3f'],
+      '#5f3a1e': ['#fbf1e3', '#b45309'],   // hardware / car
+      '#5f4a1e': ['#fbf1e3', '#b45309'],   // caution
+      '#7a4020': ['#fbeee3', '#b45309'],
+      '#7a2020': ['#fcf2f2', '#b91c1c'],   // fault
+      '#5a2020': ['#fcf2f2', '#b91c1c'],
     };
     const lc = (c) => (c || '').trim().toLowerCase();
     let recoloured = 0;
@@ -364,20 +369,40 @@ async function renderInPage(page) {
       .replace(/(stroke\s*[:=]\s*"?)(#[0-9a-fA-F]{6})/g, (m, p, c) => {
         const t = TINT[lc(c)]; if (!t) return m; recoloured++; return p + t[1];
       })
-      // lookbehind so `background-color` is not caught — edge labels keep
+      // lookbehind so `background-color` is not caught - edge labels keep
       // their white backing plate
       .replace(/(?<![-\w])(color\s*[:=]\s*"?)(#fff(?:fff)?|white|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\))/gi,
-               (m, p) => { recoloured++; return p + '#12181f'; });
+               (m, p) => { recoloured++; return p + '#1e293b'; });
 
-    // 1 — render every mermaid block to inline SVG
+    /* Force every label to ink.
+     * Mermaid derives some label colours from `primaryColor`, which in this
+     * palette is a pale tint, so state labels came out light on light and
+     * vanished entirely. The rule is scoped by the diagram's own id, giving it
+     * the same specificity as Mermaid's generated rules so it wins on order.
+     */
+    const labelOverride = (id) => '<style>'
+      + '#' + id + ' .nodeLabel, #' + id + ' .nodeLabel *,'
+      + '#' + id + ' .label, #' + id + ' .label *,'
+      + '#' + id + ' .stateLabel, #' + id + ' .stateLabel *,'
+      + '#' + id + ' .cluster-label, #' + id + ' .cluster-label *,'
+      + '#' + id + ' .edgeLabel, #' + id + ' .edgeLabel *,'
+      + '#' + id + ' .statediagram-state text, #' + id + ' .state-title,'
+      + '#' + id + ' .messageText, #' + id + ' .noteText, #' + id + ' .loopText,'
+      + '#' + id + ' text.actor, #' + id + ' .titleText, #' + id + ' .actor-box text'
+      + '{fill:#1e293b !important;color:#1e293b !important;}'
+      + '#' + id + ' text.sequenceNumber{fill:#ffffff !important;}'
+      + '</style>';
+
+    // 1 - render every mermaid block to inline SVG
     window.mermaid.initialize(window.__mermaidConfig);
     const blocks = [...document.querySelectorAll('.mermaid')];
     let rendered = 0, failed = [];
     for (const el of blocks) {
       const src = decodeURIComponent(el.dataset.src || '');
       try {
-        const { svg } = await window.mermaid.render(el.id + '-svg', src);
-        el.outerHTML = recolour(svg);
+        const svgId = el.id + '-svg';
+        const { svg } = await window.mermaid.render(svgId, src);
+        el.outerHTML = recolour(svg).replace('</svg>', labelOverride(svgId) + '</svg>');
         rendered++;
       } catch (e) {
         el.outerHTML = `<pre class="plain"><code>${src.replace(/</g, '&lt;')}</code></pre>`;
@@ -385,23 +410,40 @@ async function renderInPage(page) {
       }
     }
 
-    // constrain diagram width so nothing overflows the text block
+    // Diagrams must not overflow the text block, and must never straddle a
+    // page break. `break-inside: avoid` cannot rescue a figure taller than a
+    // page, so any oversized figure is scaled down until the whole thing,
+    // frame and diagram and caption, fits inside one page.
     document.querySelectorAll('.figure svg').forEach((svg) => {
       svg.removeAttribute('height');
       svg.style.maxWidth = '100%';
       svg.style.height = 'auto';
-      const vb = svg.getAttribute('viewBox');
-      if (vb) {
-        const [, , w, h] = vb.split(/[\s,]+/).map(Number);
-        // keep tall diagrams inside one page
-        const maxH = PAGE_H * 0.86;
-        if (h > maxH) svg.style.width = (w * (maxH / h)) + 'px';
+    });
+
+    await new Promise((r) => setTimeout(r, 60));
+
+    // 8 percent headroom: a figure measured at exactly one page can still
+    // straddle once the print engine lays it out, so leave real slack.
+    const FIG_BUDGET = PAGE_H * 0.92;
+    let scaled = 0;
+    document.querySelectorAll('.figure').forEach((fig) => {
+      const svg = fig.querySelector('svg');
+      if (!svg) return;
+      for (let pass = 0; pass < 6; pass++) {
+        const figH = fig.getBoundingClientRect().height;
+        if (figH <= FIG_BUDGET) break;
+        const box = svg.getBoundingClientRect();
+        const chrome = figH - box.height;                 // frame + caption
+        const target = Math.max(FIG_BUDGET - chrome, 80);
+        const ratio = Math.max(0.3, target / box.height);
+        svg.style.width = (box.width * ratio) + 'px';
+        if (pass === 0) scaled++;
       }
     });
 
     await new Promise((r) => setTimeout(r, 120));
 
-    // 2 — simulate pagination over top-level blocks
+    // 2 - simulate pagination over top-level blocks
     const content = document.querySelector('.content');
     const startPage = (document.querySelector('.cover') ? 1 : 0)
                     + (window.__includeToc ? 1 : 0) + 1;
@@ -433,7 +475,7 @@ async function renderInPage(page) {
         if (avoid(el) && h <= PAGE_H && cursor + h > PAGE_H) { pageNo++; cursor = 0; }
 
         if (/^H[1-6]$/.test(el.tagName)) {
-          // break-after:avoid — a heading is never left stranded at the foot
+          // break-after:avoid - a heading is never left stranded at the foot
           const next = el.nextElementSibling;
           const nextH = next ? Math.min(next.getBoundingClientRect().height, 90) : 0;
           if (cursor + h + nextH > PAGE_H) { pageNo++; cursor = 0; }
@@ -447,7 +489,7 @@ async function renderInPage(page) {
       }
     }
 
-    // 3 — build the table of contents
+    // 3 - build the table of contents
     if (window.__includeToc && content) {
       const items = [...content.querySelectorAll('h2, h3')]
         // a heading inside a callout is part of that callout, not a section
@@ -466,11 +508,16 @@ async function renderInPage(page) {
       if (toc) toc.appendChild(ol);
     }
 
-    return { rendered, failed, blocks: blocks.length, recoloured };
+    return { rendered, failed, blocks: blocks.length, recoloured, scaled };
   });
 }
 
 /* --------------------------------------------------- pass 2: true paging -- */
+
+/* Smallest glyph size that still counts as a heading. Body copy is 10pt and
+ * the smallest heading (h3) is 11pt, so this sits between them. Keep it in
+ * step with styles/print.css if the type scale changes. */
+const HEADING_MIN_PT = 10.5;
 /*
  * The simulated pagination above is a good estimate, but only the print engine
  * knows where a heading really lands. So the document is printed once, the
@@ -501,7 +548,7 @@ async function headingPagesFromPdf(pdfPath) {
       lines.set(y, cur);
     }
     for (const { parts, size } of lines.values()) {
-      if (size <= 11.0) continue;                 // body text is 10.2pt
+      if (size <= HEADING_MIN_PT) continue;
       const s = parts.sort((a, b) => a[0] - b[0]).map((p) => p[1]).join('').trim();
       if (s && !map.has(s)) map.set(s, n);
     }
@@ -518,7 +565,7 @@ function headerTemplate(doc) {
     padding:0 17mm;display:flex;justify-content:space-between;border-bottom:0.5pt solid #eef2f6;
     padding-bottom:2mm;margin-bottom:3mm;">
     <span style="letter-spacing:.1em;text-transform:uppercase;">${escapeHtml(MANIFEST.project)} · ${escapeHtml(MANIFEST.documentSet)}</span>
-    <span style="letter-spacing:.06em;">${escapeHtml(doc.docId)} — ${escapeHtml(doc.title)}</span>
+    <span style="letter-spacing:.06em;">${escapeHtml(doc.docId)} - ${escapeHtml(doc.title)}</span>
   </div>`;
 }
 
@@ -536,7 +583,7 @@ async function buildDoc(browser, doc) {
   const relForGit = path.relative(ROOT, srcPath).replace(/\\/g, '/');
   const revs = revisionHistory(relForGit);
 
-  currentDocNum = doc.docId.replace(/^CD-0*/, '') || '0';
+  currentDocNum = doc.docId.replace(/^[A-Z]+-0*/, '') || '0';
   figureCounter = 0;
 
   let src = stripNav(fs.readFileSync(srcPath, 'utf8'));
@@ -557,7 +604,8 @@ async function buildDoc(browser, doc) {
   await page.goto('file:///' + tmpFile.replace(/\\/g, '/'), { waitUntil: 'load', timeout: 60000 });
   const result = await renderInPage(page);
 
-  const outName = `${MANIFEST.project}-${doc.docId}-${doc.title.replace(/\s+/g, '-')}-v${VERSION}.pdf`;
+  const prefix = MANIFEST.filePrefix || MANIFEST.project.replace(/\s+/g, '');
+  const outName = `${prefix}-${doc.docId}-${doc.title.replace(/\s+/g, '-')}-v${VERSION}.pdf`;
   const outPath = path.join(DIST, outName);
   const pdfOpts = {
     format: 'A4',
@@ -571,7 +619,7 @@ async function buildDoc(browser, doc) {
     timeout: 120000,
   };
 
-  // pass 1 — print with estimated page numbers
+  // pass 1 - print with estimated page numbers
   const probePath = path.join(TMP, `${doc.docId}.probe.pdf`);
   await page.pdf({ ...pdfOpts, path: probePath });
 
@@ -587,14 +635,14 @@ async function buildDoc(browser, doc) {
     return { fixed, missed };
   }, truePages);
 
-  // pass 2 — print again, now exact
+  // pass 2 - print again, now exact
   await page.pdf({ ...pdfOpts, path: outPath });
   fs.unlinkSync(probePath);
   await page.close();
 
   const kb = Math.round(fs.statSync(outPath).size / 1024);
   const tocNote = corrected.missed ? `  (${corrected.missed} toc entries unresolved)` : '';
-  ok(`${doc.docId}  ${doc.title.padEnd(26)} rev ${revs[revs.length - 1].rev.padEnd(3)} ${String(result.rendered).padStart(2)} figures  ${String(kb).padStart(4)} KB  toc+${corrected.fixed}  recol ${result.recoloured}${tocNote}`);
+  ok(`${doc.docId}  ${doc.title.padEnd(26)} rev ${revs[revs.length - 1].rev.padEnd(3)} ${String(result.rendered).padStart(2)} figures  ${String(kb).padStart(4)} KB  toc+${corrected.fixed}  recol ${result.recoloured}${result.scaled ? '  fit ' + result.scaled : ''}${tocNote}`);
   if (result.failed.length) result.failed.forEach((f) => warn(`diagram failed: ${f}`));
 
   return { doc, revs, outName, kb, figures: result.rendered };
@@ -603,15 +651,14 @@ async function buildDoc(browser, doc) {
 async function buildManual(browser, docs) {
   let body = `
 <section class="cover">
-  <div class="cover-rule"></div>
-  <div class="cover-project">${MANIFEST.project} — ${MANIFEST.subtitle}</div>
+  <div class="cover-project">${MANIFEST.project}</div>
   <div class="cover-set">Complete ${MANIFEST.documentSet}</div>
-  <div class="cover-docid">CD-MANUAL</div>
+  <div class="cover-docid">TD-MANUAL</div>
   <h1 class="cover-title">Technical Manual</h1>
   <div class="cover-subtitle">All controlled documents, bound as one volume. Build, operate, diagnose and extend a tablet-based wireless Android Auto head unit.</div>
   <div class="control">
     <div class="control-grid">
-      <div class="control-item"><div class="k">Volume</div><div class="v mono">CD-MANUAL</div></div>
+      <div class="control-item"><div class="k">Volume</div><div class="v mono">TD-MANUAL</div></div>
       <div class="control-item"><div class="k">Version</div><div class="v mono">${VERSION}</div></div>
       <div class="control-item"><div class="k">Documents</div><div class="v mono">${docs.length}</div></div>
       <div class="control-item"><div class="k">Issued</div><div class="v mono">${BUILD.date}</div></div>
@@ -633,7 +680,7 @@ async function buildManual(browser, docs) {
 
   for (const doc of docs) {
     const srcPath = path.resolve(DOCS, doc.file);
-    currentDocNum = doc.docId.replace(/^CD-0*/, '') || '0';
+    currentDocNum = doc.docId.replace(/^[A-Z]+-0*/, '') || '0';
     figureCounter = 0;
     let src = stripNav(fs.readFileSync(srcPath, 'utf8')).replace(/^#\s+.*\n/, '');
     body += `<section class="part-divider">
@@ -647,15 +694,15 @@ async function buildManual(browser, docs) {
   }
   body += `</main>`;
 
-  const tmpFile = path.join(TMP, 'CD-MANUAL.html');
-  fs.writeFileSync(tmpFile, pageHtml({ title: 'CarDeck Technical Manual', bodyHtml: body, includeToc: true }));
+  const tmpFile = path.join(TMP, 'TD-MANUAL.html');
+  fs.writeFileSync(tmpFile, pageHtml({ title: 'Thar Deck Technical Manual', bodyHtml: body, includeToc: true }));
 
   const page = await browser.newPage();
   await page.goto('file:///' + tmpFile.replace(/\\/g, '/'), { waitUntil: 'load', timeout: 120000 });
   const result = await renderInPage(page);
 
-  const doc = { docId: 'CD-MANUAL', title: 'Technical Manual' };
-  const outName = `${MANIFEST.project}-Technical-Manual-v${VERSION}.pdf`;
+  const doc = { docId: 'TD-MANUAL', title: 'Technical Manual' };
+  const outName = `${MANIFEST.filePrefix || MANIFEST.project.replace(/\s+/g, '')}-Technical-Manual-v${VERSION}.pdf`;
   const outPath = path.join(DIST, outName);
   const pdfOpts = {
     format: 'A4',
@@ -667,7 +714,7 @@ async function buildManual(browser, docs) {
     outline: true,
     timeout: 180000,
   };
-  const probePath = path.join(TMP, 'CD-MANUAL.probe.pdf');
+  const probePath = path.join(TMP, 'TD-MANUAL.probe.pdf');
   await page.pdf({ ...pdfOpts, path: probePath });
   const truePages = await headingPagesFromPdf(probePath);
   await page.evaluate((map) => {
@@ -681,7 +728,7 @@ async function buildManual(browser, docs) {
   await page.close();
 
   const kb = Math.round(fs.statSync(outPath).size / 1024);
-  ok(`CD-MANUAL  Technical Manual (all ${docs.length})   ${String(result.rendered).padStart(2)} figures  ${String(kb).padStart(4)} KB`);
+  ok(`TD-MANUAL  Technical Manual (all ${docs.length})   ${String(result.rendered).padStart(2)} figures  ${String(kb).padStart(4)} KB`);
   return { outName, kb, figures: result.rendered };
 }
 
@@ -719,7 +766,7 @@ async function buildManual(browser, docs) {
 
   await browser.close();
 
-  // Build record — machine-readable provenance for every artefact issued.
+  // Build record - machine-readable provenance for every artefact issued.
   const record = {
     project: MANIFEST.project,
     version: VERSION,
@@ -732,7 +779,7 @@ async function buildManual(browser, docs) {
         revision: b.revs[b.revs.length - 1].rev, revisions: b.revs.length,
         figures: b.figures, file: b.outName, sizeKB: b.kb,
       })),
-      ...(manual ? [{ docId: 'CD-MANUAL', title: 'Technical Manual', file: manual.outName, sizeKB: manual.kb, figures: manual.figures }] : []),
+      ...(manual ? [{ docId: 'TD-MANUAL', title: 'Technical Manual', file: manual.outName, sizeKB: manual.kb, figures: manual.figures }] : []),
     ],
   };
   fs.writeFileSync(path.join(DIST, 'build-record.json'), JSON.stringify(record, null, 2));
@@ -743,6 +790,6 @@ async function buildManual(browser, docs) {
   log(`  ${record.artefacts.length} PDFs · ${totalFigs} vector diagrams · ${(totalKb / 1024).toFixed(1)} MB`);
   log(`  output   dist/`);
   log(`  record   dist/build-record.json`);
-  if (BUILD.dirty) warn('Built from a dirty working tree — commit before issuing.');
+  if (BUILD.dirty) warn('Built from a dirty working tree - commit before issuing.');
   log('');
 })().catch((e) => { console.error('\nBuild failed:', e); process.exit(1); });

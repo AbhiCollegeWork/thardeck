@@ -1,4 +1,4 @@
-# Stop-DriveLogging.ps1 — kill all capture on the Tab and remove every trace.
+# Stop-DriveLogging.ps1 - kill all capture on the Tab and remove every trace.
 # Use when you're done diagnosing. Pull your logs FIRST (Pull-DriveLogs.ps1).
 #
 #   powershell -ExecutionPolicy Bypass -File Stop-DriveLogging.ps1

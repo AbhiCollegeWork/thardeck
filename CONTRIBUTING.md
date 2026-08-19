@@ -26,7 +26,7 @@ Open an issue with:
 - Which settings you had to change from this guide
 - Scrubbed diagnostics if you have them
 
-**Always include both frequency readings** — this answers the most common cause before anyone has to ask:
+**Always include both frequency readings** - this answers the most common cause before anyone has to ask:
 ```bash
 adb -s <PHONE>  shell dumpsys wifi | grep -i frequency
 adb -s <TABLET> shell dumpsys wifi | grep -i frequency
@@ -60,10 +60,10 @@ The value of this repo is that it records *why*, not just *what*. When you add t
 
 ## Code
 
-- PowerShell scripts target 5.1 (Windows default) — no PowerShell 7 syntax
-- Shell scripts target Android's `sh`, not bash — no bashisms
+- PowerShell scripts target 5.1 (Windows default) - no PowerShell 7 syntax
+- Shell scripts target Android's `sh`, not bash - no bashisms
 - Device serials stay as `YOUR_TABLET_SERIAL` / `YOUR_PHONE_SERIAL` placeholders
-- Anything that deletes must verify first — see the pattern in `Pull-DriveLogs.ps1`
+- Anything that deletes must verify first - see the pattern in `Pull-DriveLogs.ps1`
 - No hardcoded IPs, SSIDs or MAC addresses
 
 ---
@@ -72,7 +72,7 @@ The value of this repo is that it records *why*, not just *what*. When you add t
 
 This system runs in a moving vehicle. Contributions that affect in-car behaviour should say what happens when they fail, and should not make the driver look at the screen for longer or more often.
 
-**The system's best property is that audio never depends on video** — a total failure of the screen still leaves navigation audible and the phone call connected. Do not propose changes that couple them.
+**The system's best property is that audio never depends on video** - a total failure of the screen still leaves navigation audible and the phone call connected. Do not propose changes that couple them.
 
 ---
 
