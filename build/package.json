@@ -1,0 +1,19 @@
+{
+  "name": "cardeck-docs-build",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Documentation build pipeline: Markdown + Mermaid -> print-quality PDF",
+  "scripts": {
+    "build": "node build-docs.mjs",
+    "build:single": "node build-docs.mjs --only"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-attrs": "^4.3.1",
+    "mermaid": "^11.17.0",
+    "pdfjs-dist": "^4.10.38",
+    "puppeteer-core": "^23.11.1"
+  }
+}

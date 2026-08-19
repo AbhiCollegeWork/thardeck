@@ -78,6 +78,22 @@ The reference build used a Galaxy Tab S9 FE+ and a Galaxy S25 Ultra, but nothing
 | **[07 — Troubleshooting](docs/07-troubleshooting.md)** | Symptom → root cause → fix, including dead ends |
 | **[08 — Roadmap](docs/08-roadmap.md)** | Smart dash cam and what comes next |
 
+Also: [CHANGELOG.md](CHANGELOG.md) · [build/README.md](build/README.md) — the PDF pipeline · [docs/manifest.json](docs/manifest.json) — the document register
+
+---
+
+## Documentation as PDF
+
+Every document is also issued as a controlled PDF — cover page, document ID, revision history derived from git, and an exact table of contents. Diagrams stay vector, so they are sharp at any print size.
+
+```bash
+cd build && npm install && npm run build
+```
+
+Output in `dist/`: nine individual documents plus `CarDeck-Technical-Manual-v1.0.0.pdf`, all of it bound as one 81-page volume. Pre-built PDFs are attached to each [release](../../releases).
+
+How the pipeline works — including why the page numbers are exact rather than estimated — is in [build/README.md](build/README.md).
+
 ---
 
 ## Quick start

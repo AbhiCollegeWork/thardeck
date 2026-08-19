@@ -1,0 +1,85 @@
+{
+  "$comment": "Document register. The build pipeline reads this to produce controlled PDFs; revision history for each document is derived from git history of the source file.",
+  "project": "CarDeck",
+  "subtitle": "A DIY wireless Android Auto head unit",
+  "documentSet": "Technical Documentation",
+  "classification": "Public",
+  "license": "MIT",
+  "repository": "https://github.com/USERNAME/cardeck",
+  "documents": [
+    {
+      "docId": "CD-000",
+      "file": "../README.md",
+      "title": "Overview",
+      "subtitle": "System introduction, bill of materials and project status",
+      "status": "Released",
+      "audience": "All readers"
+    },
+    {
+      "docId": "CD-001",
+      "file": "01-architecture.md",
+      "title": "Architecture",
+      "subtitle": "System design, network topology and failure analysis",
+      "status": "Released",
+      "audience": "Implementers, reviewers"
+    },
+    {
+      "docId": "CD-002",
+      "file": "02-hardware-spec.md",
+      "title": "Hardware Specification",
+      "subtitle": "Component register and measured performance baselines",
+      "status": "Released",
+      "audience": "Implementers"
+    },
+    {
+      "docId": "CD-003",
+      "file": "03-setup-guide.md",
+      "title": "Setup Guide",
+      "subtitle": "Build and commissioning manual",
+      "status": "Released",
+      "audience": "Installers"
+    },
+    {
+      "docId": "CD-004",
+      "file": "04-audio-chain.md",
+      "title": "Audio Chain",
+      "subtitle": "Signal path, ground-loop analysis and equalisation",
+      "status": "Released",
+      "audience": "Implementers"
+    },
+    {
+      "docId": "CD-005",
+      "file": "05-protocol-notes.md",
+      "title": "Protocol Notes",
+      "subtitle": "Reverse-engineered wireless projection behaviour",
+      "status": "Released",
+      "audience": "Developers",
+      "note": "Version-sensitive. Observed behaviour, not a stable interface contract."
+    },
+    {
+      "docId": "CD-006",
+      "file": "06-diagnostics.md",
+      "title": "Diagnostics",
+      "subtitle": "Instrumentation, capture tooling and data interpretation",
+      "status": "Released",
+      "audience": "Implementers, maintainers"
+    },
+    {
+      "docId": "CD-007",
+      "file": "07-troubleshooting.md",
+      "title": "Troubleshooting",
+      "subtitle": "Fault register, root causes and documented dead ends",
+      "status": "Released",
+      "audience": "All readers"
+    },
+    {
+      "docId": "CD-008",
+      "file": "08-roadmap.md",
+      "title": "Roadmap",
+      "subtitle": "Planned work and design constraints for future features",
+      "status": "Draft",
+      "audience": "Contributors",
+      "note": "Forward-looking. Nothing described here is implemented or validated."
+    }
+  ]
+}

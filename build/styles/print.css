@@ -1,0 +1,471 @@
+/* ============================================================================
+   CarDeck — print stylesheet for controlled technical documentation
+   Target: Chromium print engine, A4. All units physical where it matters.
+   ========================================================================= */
+
+:root {
+  /* Ink */
+  --ink:        #12181f;
+  --ink-soft:   #3d4854;
+  --ink-muted:  #6b7683;
+  --ink-faint:  #929ba6;
+
+  /* Structure */
+  --rule:       #dde3ea;
+  --rule-soft:  #eef2f6;
+  --panel:      #f7f9fb;
+  --panel-alt:  #eff4f9;
+
+  /* Semantic accents — used consistently across prose and diagrams */
+  --accent:     #0b5394;   /* primary / structural   */
+  --accent-2:   #0e6f66;   /* verified / good        */
+  --warn:       #9a5b0e;   /* caution                */
+  --danger:     #9c2c2c;   /* fault / dead end       */
+
+  /* Type */
+  --sans: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Mono", "Consolas", "SF Mono", "Menlo", monospace;
+}
+
+/* ---------------------------------------------------------------- page ---- */
+
+@page {
+  size: A4;
+  margin: 20mm 17mm 18mm 17mm;
+}
+
+@page :first {
+  margin: 0;
+}
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+body {
+  font-family: var(--sans);
+  font-size: 10.2pt;
+  line-height: 1.58;
+  color: var(--ink);
+  margin: 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums lining-nums;
+  text-rendering: optimizeLegibility;
+}
+
+/* ------------------------------------------------------------- cover ------ */
+
+.cover {
+  page-break-after: always;
+  break-after: page;
+  padding: 24mm 17mm 18mm 17mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.cover-rule {
+  height: 3.2pt;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 62%, var(--accent-2) 62%, var(--accent-2) 100%);
+  margin-bottom: 9mm;
+}
+
+.cover-project {
+  font-size: 8.6pt;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 2mm;
+}
+
+.cover-set {
+  font-size: 8.6pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 500;
+  margin-bottom: 22mm;
+}
+
+.cover-docid {
+  font-family: var(--mono);
+  font-size: 11pt;
+  color: var(--ink-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 3mm;
+}
+
+.cover-title {
+  font-size: 30pt;
+  line-height: 1.12;
+  font-weight: 650;
+  letter-spacing: -0.018em;
+  color: var(--ink);
+  margin: 0 0 4mm 0;
+  max-width: 150mm;
+}
+
+.cover-subtitle {
+  font-size: 12.5pt;
+  line-height: 1.42;
+  color: var(--ink-soft);
+  font-weight: 400;
+  max-width: 130mm;
+  margin-bottom: 20mm;
+}
+
+/* document-control block */
+.control {
+  border-top: 1pt solid var(--rule);
+  border-bottom: 1pt solid var(--rule);
+  padding: 5mm 0;
+  margin-bottom: 8mm;
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5mm 6mm;
+}
+
+.control-item .k {
+  font-size: 7.2pt;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 1.2mm;
+}
+
+.control-item .v {
+  font-size: 9.6pt;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.control-item .v.mono { font-family: var(--mono); font-size: 8.8pt; }
+
+.badge {
+  display: inline-block;
+  padding: 0.7mm 2.2mm;
+  border-radius: 2pt;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.badge.released { background: #e3f2ea; color: #0e6f66; }
+.badge.draft    { background: #fbf0dd; color: #9a5b0e; }
+
+/* revision history */
+.revtable-label {
+  font-size: 7.6pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 2.5mm;
+}
+
+.revtable { width: 100%; border-collapse: collapse; font-size: 8.4pt; }
+.revtable th {
+  text-align: left;
+  font-size: 7.2pt;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  border-bottom: 0.75pt solid var(--rule);
+  padding: 0 3mm 1.5mm 0;
+}
+.revtable td {
+  padding: 1.8mm 3mm 1.8mm 0;
+  border-bottom: 0.5pt solid var(--rule-soft);
+  color: var(--ink-soft);
+  vertical-align: top;
+}
+.revtable td.rev  { font-family: var(--mono); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.revtable td.date { font-family: var(--mono); white-space: nowrap; color: var(--ink-muted); }
+.revtable td.hash { font-family: var(--mono); color: var(--ink-faint); white-space: nowrap; }
+
+.cover-foot {
+  position: absolute;
+  bottom: 18mm;
+  left: 17mm;
+  right: 17mm;
+  display: flex;
+  justify-content: space-between;
+  font-size: 8pt;
+  color: var(--ink-faint);
+  border-top: 0.5pt solid var(--rule);
+  padding-top: 3mm;
+}
+
+.cover-note {
+  background: var(--panel);
+  border-left: 2.5pt solid var(--warn);
+  padding: 3mm 4mm;
+  font-size: 8.8pt;
+  color: var(--ink-soft);
+  margin-bottom: 8mm;
+}
+
+/* --------------------------------------------------------------- toc ------ */
+
+.toc { page-break-after: always; break-after: page; }
+
+.toc h2 {
+  font-size: 8.6pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border: none;
+  padding: 0;
+  margin: 0 0 5mm 0;
+  font-weight: 600;
+}
+
+.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+.toc li { margin: 0; padding: 0; }
+
+.toc a {
+  display: flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--ink);
+  padding: 1.7mm 0;
+  border-bottom: 0.4pt solid var(--rule-soft);
+}
+.toc .lvl-2 a { font-weight: 550; font-size: 10pt; }
+.toc .lvl-3 a { font-weight: 400; font-size: 9.2pt; color: var(--ink-soft); padding-left: 7mm; }
+.toc .t { flex: 1; }
+.toc .d { flex: 0 0 auto; color: var(--rule); margin: 0 2mm; overflow: hidden; }
+.toc .p { font-family: var(--mono); font-size: 8.4pt; color: var(--ink-muted); }
+
+/* ------------------------------------------------------------ headings ---- */
+
+h1, h2, h3, h4 {
+  break-after: avoid-page;
+  page-break-after: avoid;
+  color: var(--ink);
+  font-weight: 620;
+  letter-spacing: -0.012em;
+}
+
+.content > h1:first-child { margin-top: 0; }
+
+h1 { font-size: 19pt; line-height: 1.2;  margin: 0 0 5mm 0; }
+
+h2 {
+  font-size: 14.2pt;
+  line-height: 1.25;
+  margin: 9mm 0 3.5mm 0;
+  padding-bottom: 2mm;
+  border-bottom: 0.75pt solid var(--rule);
+}
+
+h3 { font-size: 11.4pt; margin: 6.5mm 0 2.5mm 0; color: var(--ink); }
+h4 { font-size: 10.2pt; margin: 5mm 0 2mm 0; color: var(--ink-soft); }
+
+/* ---------------------------------------------------------------- text ---- */
+
+p { margin: 0 0 3.2mm 0; orphans: 3; widows: 3; }
+
+strong { font-weight: 640; color: var(--ink); }
+em { font-style: italic; color: var(--ink-soft); }
+
+a { color: var(--accent); text-decoration: none; border-bottom: 0.4pt solid rgba(11,83,148,0.28); }
+
+/* Cross-document reference: printed pages cannot follow a hyperlink, so the
+   target document's ID is set beside the link text. */
+a.xref { color: var(--ink); border-bottom: 0.4pt dotted var(--ink-faint); }
+.xref-id {
+  font-family: var(--mono);
+  font-size: 7.4pt;
+  color: var(--accent);
+  background: var(--panel-alt);
+  border-radius: 1.5pt;
+  padding: 0.3mm 1mm;
+  margin-left: 1mm;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+a.exlink { color: var(--accent); }
+
+ul, ol { margin: 0 0 3.2mm 0; padding-left: 5.5mm; }
+li { margin-bottom: 1.4mm; }
+li::marker { color: var(--ink-faint); }
+
+hr {
+  border: none;
+  border-top: 0.5pt solid var(--rule);
+  margin: 7mm 0;
+}
+
+/* --------------------------------------------------------------- code ----- */
+
+code {
+  font-family: var(--mono);
+  font-size: 8.6pt;
+  background: var(--panel-alt);
+  padding: 0.4mm 1.1mm;
+  border-radius: 1.5pt;
+  color: #0a4a7a;
+  word-break: break-word;
+}
+
+pre {
+  background: var(--panel);
+  border: 0.5pt solid var(--rule);
+  border-left: 2.5pt solid var(--accent);
+  border-radius: 2pt;
+  padding: 3mm 4mm;
+  margin: 0 0 4mm 0;
+  overflow: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 8.1pt;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* -------------------------------------------------------------- tables ---- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 4.5mm 0;
+  font-size: 9pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+thead { display: table-header-group; }
+
+th {
+  text-align: left;
+  font-size: 7.6pt;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--ink-muted);
+  background: var(--panel);
+  border-bottom: 1pt solid var(--rule);
+  padding: 2.2mm 3mm;
+}
+
+td {
+  padding: 2.2mm 3mm;
+  border-bottom: 0.5pt solid var(--rule-soft);
+  vertical-align: top;
+  color: var(--ink-soft);
+}
+
+tbody tr:nth-child(even) td { background: #fbfcfe; }
+td strong { color: var(--ink); }
+
+/* ---------------------------------------------------------- blockquote ---- */
+
+blockquote {
+  margin: 0 0 4mm 0;
+  padding: 3.2mm 4mm;
+  background: var(--panel);
+  border-left: 2.5pt solid var(--ink-faint);
+  border-radius: 0 2pt 2pt 0;
+  color: var(--ink-soft);
+  break-inside: avoid;
+}
+blockquote > :last-child { margin-bottom: 0; }
+blockquote strong { color: var(--ink); }
+
+/* Callout variants — assigned by the build script from leading markers */
+blockquote.warn   { border-left-color: var(--warn);   background: #fdf8ef; }
+blockquote.danger { border-left-color: var(--danger); background: #fcf3f3; }
+blockquote.good   { border-left-color: var(--accent-2); background: #f1f8f5; }
+blockquote.info   { border-left-color: var(--accent); background: #f2f7fc; }
+
+/* ------------------------------------------------------------ diagrams ---- */
+
+.figure {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin: 5mm 0 6mm 0;
+  padding: 4mm;
+  background: #fcfdfe;
+  border: 0.5pt solid var(--rule);
+  border-radius: 2.5pt;
+  text-align: center;
+}
+
+.figure svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.figure figcaption {
+  margin-top: 3mm;
+  padding-top: 2.5mm;
+  border-top: 0.4pt solid var(--rule-soft);
+  font-size: 7.8pt;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* ASCII / plain preformatted diagrams keep a neutral frame */
+pre.plain {
+  border-left-color: var(--ink-faint);
+  text-align: left;
+}
+
+/* ------------------------------------------------- combined-manual parts -- */
+
+.part-divider {
+  page-break-before: always;
+  break-before: page;
+  page-break-after: always;
+  break-after: page;
+  padding-top: 95mm;
+}
+.part-divider .pd-id {
+  font-family: var(--mono);
+  font-size: 10pt;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  margin-bottom: 3mm;
+}
+.part-divider .pd-title {
+  font-size: 26pt;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin-bottom: 3mm;
+}
+.part-divider .pd-sub {
+  font-size: 11.5pt;
+  color: var(--ink-soft);
+  max-width: 120mm;
+}
+.part-divider .pd-rule {
+  height: 2.5pt;
+  width: 40mm;
+  background: var(--accent);
+  margin-bottom: 8mm;
+}
+
+.docbreak { page-break-before: always; break-before: page; }
+
+/* --------------------------------------------------------------- misc ----- */
+
+.content { padding-top: 0; }
+
+img { max-width: 100%; }
+
+/* Keep short sections with their heading */
+h2 + p, h3 + p, h2 + ul, h3 + ul, h2 + table, h3 + table { break-before: avoid-page; }

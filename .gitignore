@@ -14,3 +14,11 @@ config.local.ps1
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Build pipeline
+build/node_modules/
+build/.tmp/
+
+# Generated PDFs are release artefacts, not source.
+# Remove this line if you prefer to commit them.
+dist/
