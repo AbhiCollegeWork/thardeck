@@ -41,5 +41,5 @@ First public release. Documents a working, daily-driven installation.
 - Receiver app self-launching outside the car
 - Bass loss introduced by the ground-loop isolator
 
-[Unreleased]: https://github.com/USERNAME/thardeck/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/USERNAME/thardeck/releases/tag/v1.0.0
+[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.0.0
