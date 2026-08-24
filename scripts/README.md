@@ -89,6 +89,26 @@ MSYS_NO_PATHCONV=1 adb push aa-wifi-sampler.sh /data/local/tmp/
 
 ---
 
+## `tab-watch.sh` and `phone-watch.sh`
+
+Supervised capture, deployed to `/data/local/tmp/` and started detached:
+
+```bash
+adb -s <DEVICE> push tab-watch.sh /data/local/tmp/
+adb -s <DEVICE> shell "chmod 755 /data/local/tmp/tab-watch.sh"
+adb -s <DEVICE> shell "nohup setsid sh /data/local/tmp/tab-watch.sh >/dev/null 2>&1 &"
+```
+
+`tab-watch.sh` runs on the tablet: filtered logcat, a watchdog that restarts it within 30 seconds of a silent death, and a line in `events.log` for every projection session transition with the Wi-Fi state at that instant.
+
+`phone-watch.sh` runs on the phone and records the source side every five seconds: whether Android Auto is projecting, whether its process is alive, Bluetooth links, hotspot clients, screen state and battery temperature.
+
+Use both together. A session has two ends, and the tablet alone can prove the network was fine without ever saying what ended the session. See [Troubleshooting §11](../docs/07-troubleshooting.md#11-screen-freezes-mid-drive-then-recovers).
+
+**From Git Bash, prefix pushes with `MSYS_NO_PATHCONV=1`** or the destination path is rewritten.
+
+---
+
 ## Privacy
 
 Pulled logs contain **SSIDs, BSSIDs, MAC addresses and network history**. The repo `.gitignore` excludes `drive-logs/`, `*.csv` and `logcat*.txt` - keep it that way, and scrub before attaching anything to an issue. See [Diagnostics § Privacy](../docs/06-diagnostics.md#privacy).

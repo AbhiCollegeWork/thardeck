@@ -12,8 +12,23 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 ## [Unreleased]
 
 ### Pending validation
-- Hotspot 2.4 GHz band fix has not yet been road-tested over a full drive
 - Record-while-projecting feasibility for the planned dash cam is unmeasured
+- The five mid-drive freezes are localised to the session layer but not yet attributed to a specific cause; capture is now in place to catch the next one
+
+## [1.1.0] - 2026-08-24
+
+### Confirmed
+- **The video corruption fix holds.** Nine days and twelve drives on the separated band: hotspot at 5745 MHz with the tablet's home network elsewhere, Rx 433 to 866 Mbps, and zero contention stalls. The co-channel collision described in TD-007 section 2 has not recurred.
+- Car audio noise reduced to zero at source, and the bass loss from the ground-loop isolator recovered using the amplifier sensitivity and low-pass trim-pots described in TD-002
+
+### Added
+- `TD-007` section 11: mid-drive freezes with a healthy radio link, including how to tell a freeze from corruption, since the two look similar and have opposite causes
+- `scripts/tab-watch.sh` and `scripts/phone-watch.sh`: supervised, two-ended capture
+- `TD-006`: a section on supervised capture and why unsupervised logging is worthless
+
+### Fixed
+- Log capture no longer dies silently. The previous unsupervised `logcat` was reaped by the system and went unnoticed for five days, leaving a run of freezes unrecorded. Capture is now watchdogged and filtered.
+- Instrumentation now covers the phone as well as the tablet. Only recording the receiver could prove the network was healthy but never say what ended the session.
 
 ## [1.0.0] - 2026-08-19
 
@@ -41,5 +56,6 @@ First public release. Documents a working, daily-driven installation.
 - Receiver app self-launching outside the car
 - Bass loss introduced by the ground-loop isolator
 
-[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.1.0
 [1.0.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.0.0

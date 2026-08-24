@@ -25,7 +25,9 @@ RSSI -25 dBm  +  Rx 1-6 Mbps   =   contention, not range
 | [`Start-DriveLogging.ps1`](../scripts/Start-DriveLogging.ps1) | Arms both captures on the tablet, detached |
 | [`Pull-DriveLogs.ps1`](../scripts/Pull-DriveLogs.ps1) | Retrieves, summarises, then cleans the device |
 | [`Stop-DriveLogging.ps1`](../scripts/Stop-DriveLogging.ps1) | Kills everything and removes all traces |
-| [`aa-wifi-sampler.sh`](../scripts/aa-wifi-sampler.sh) | The on-device sampler itself |
+| [`aa-wifi-sampler.sh`](../scripts/aa-wifi-sampler.sh) | The on-device Wi-Fi sampler |
+| [`tab-watch.sh`](../scripts/tab-watch.sh) | Supervised capture on the tablet, restarts logcat if it dies |
+| [`phone-watch.sh`](../scripts/phone-watch.sh) | Source-side capture on the phone |
 
 ### Workflow
 
@@ -78,6 +80,31 @@ EST=$(cat /proc/net/tcp /proc/net/tcp6 | awk '$2 ~ /14A8$/ && $4 == "01"' | wc -
 **UID-independent by design** - it survives app reinstalls and version changes, which log-scraping does not.
 
 ---
+
+## Supervised capture
+
+The first version of this tooling ran `logcat` unsupervised. The system reaped it after four days and **nothing noticed for another five**, so a run of mid-drive freezes went completely unrecorded. The Wi-Fi sampler survived, which was enough to exclude the network but not enough to name the cause.
+
+Two rules came out of that, and both are now built in.
+
+**Supervise anything long-running.** `tab-watch.sh` checks every five seconds that logcat is alive and restarts it within thirty if it is not, writing a `WATCHDOG` line to `events.log` so a silent death becomes a visible one. Verify it yourself:
+
+```bash
+adb shell "pkill -f 'logcat -v threadtime'"
+sleep 40
+adb shell "ps -A | grep -c '[l]ogcat'"        # back to 1
+adb shell "cat /sdcard/Download/aa-diag/events.log"
+```
+
+**Capture both ends.** A projection session has two ends and either can end it. Instrumenting only the receiver can prove the network was healthy but can never say what tore the session down. `phone-watch.sh` records the source side every five seconds:
+
+```
+timestamp|projecting|gearhead|helper|bt_acl|ap_clients|screen|batt_temp
+```
+
+Between them, a freeze is now attributable: `events.log` timestamps the session transition, `phone.csv` says whether Android Auto was still alive and whether Bluetooth held at that instant, and the filtered logcat on both devices carries the reason.
+
+**Filtering matters too.** The original capture used `-b all`, roughly 7 MB an hour of mostly irrelevant chatter, which is both a storage problem and a reason for the system to kill it. The supervised version filters to the tags that carry the answer and writes far less.
 
 ## Surviving a drive
 

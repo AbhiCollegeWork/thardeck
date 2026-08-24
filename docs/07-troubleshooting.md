@@ -16,6 +16,7 @@ Every failure hit during this build, what caused it, and how it was fixed - incl
 | Settings will not stick | [§8](#8-settings-revert-silently) |
 | "Self Mode" hangs at the animation | [§9](#9-self-mode-hangs-at-the-animation) |
 | adb worked yesterday, refuses today | [§10](#10-adb-stops-connecting-after-about-a-week) |
+| Screen freezes mid-drive, recovers by itself | [§11](#11-screen-freezes-mid-drive-then-recovers) |
 | Noise or hum in the speakers | [04 - Audio Chain](04-audio-chain.md#the-noise-problem) |
 | Bass thin after fitting an isolator | [04 - Audio Chain](04-audio-chain.md#recovering-the-bass) |
 
@@ -249,6 +250,61 @@ adb connect <TABLET_IP>:<PORT>                # fails
 ```bash
 adb disconnect <ip:port>
 ```
+
+---
+
+## 11. Screen freezes mid-drive, then recovers
+
+**Symptom** - the picture stops dead on one frame, stays frozen for anywhere between 30 seconds and 4 minutes, then comes back on its own. No corruption, no macroblocks, just a still image. Audio keeps playing normally throughout, because audio never crosses the Wi-Fi link.
+
+**This is a different fault from [§2](#2-video-corrupts-into-macroblocks), and the two are easy to confuse.** Corruption is a damaged stream. A freeze is no stream at all. They have opposite causes and opposite fixes, so establish which one you have before doing anything.
+
+### Telling them apart
+
+| | Corruption | Freeze |
+|---|---|---|
+| Picture | Smeared, blocky, moving | Static, one clean frame |
+| Session on port 5288 | Stays ESTABLISHED | Drops to zero |
+| Rx throughput | Collapses | Stays healthy |
+| Cause | Radio contention | Session torn down above the network layer |
+
+### What the data showed
+
+Across nine days and twelve drives, five mid-drive freezes were captured. In every one the radio link was **perfect** while the session was down:
+
+```
+19:54:32   session=1   RSSI -38   Rx 585 Mbps    <- last frame before the freeze
+19:54:42   session=0   RSSI -36   Rx 433 Mbps    <- screen frozen, link fine
+19:56:45   session=0   RSSI -37   Rx 468 Mbps    <- still frozen, still fine
+19:58:38   session=1   RSSI -32   Rx 526 Mbps    <- recovered by itself
+```
+
+RSSI stayed between -34 and -44 dBm and throughput between 433 and 866 Mbps for the entire outage. The tablet never left the hotspot, the frequency never changed, and no other network appeared.
+
+**That rules out the whole network layer.** Signal, range, channel contention, roaming and band selection are all excluded by the numbers. The TCP session died while the pipe underneath it was wide open.
+
+### What it narrows to
+
+Something above the transport ended the session. In order of likelihood:
+
+| Candidate | Why it fits | How to confirm |
+|---|---|---|
+| The receiver app was killed or restarted | Vendor process management reaps background processes aggressively; the same tablet silently killed an unsupervised `logcat` | App pid changes across the freeze |
+| Android Auto ended projection | It owns the session and can tear it down for its own reasons | `GH.*` tags on the phone at the freeze timestamp |
+| The Helper stopped and restarted it | With *Stop on BT disconnect* enabled, a momentary Bluetooth blip to the car audio device ends projection, and auto-reconnect brings it back 30 to 60 seconds later, which matches the observed recovery times | Bluetooth ACL count on the phone at the freeze timestamp |
+| Thermal throttling stalling the encoder or decoder | A tablet on a windscreen under load | Battery and thermal readings across the freeze |
+
+> **Do not guess between these.** Each has a different fix, and applying the wrong one hides the fault instead of removing it. The [capture tooling](06-diagnostics.md#supervised-capture) records exactly the signals that separate them.
+
+### The instrumentation gap that made this hard
+
+The freezes could not be attributed because **the log capture had died two days earlier and nothing noticed.** An unsupervised `logcat` was reaped by the system, leaving only the Wi-Fi sampler running. The sampler was enough to exclude the network, which is genuinely useful, but not enough to identify the cause.
+
+Two lessons, both now built into the tooling:
+
+1. **Supervise anything long-running.** `scripts/tab-watch.sh` restarts logcat within 30 seconds of it dying and records that it happened.
+2. **Capture both ends.** Only the tablet was instrumented. A session has two ends and either can end it, so `scripts/phone-watch.sh` now records the source side: whether Android Auto is projecting, whether its process is alive, the Bluetooth link state, hotspot clients, and temperature.
+
 
 ---
 
