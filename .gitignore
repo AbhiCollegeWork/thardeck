@@ -5,6 +5,7 @@ drive-logs/
 logcat*.txt
 *.png
 !docs/img/*.png
+!assets/diagrams/*.png
 
 # Local device config
 config.local.ps1

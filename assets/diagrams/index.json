@@ -1,0 +1,80 @@
+[
+  {
+    "id": "00-overview-1",
+    "title": "What it actually does",
+    "png": "00-overview-1.png",
+    "svg": "00-overview-1.svg"
+  },
+  {
+    "id": "01-architecture-1",
+    "title": "Physical layout",
+    "png": "01-architecture-1.png",
+    "svg": "01-architecture-1.svg"
+  },
+  {
+    "id": "01-architecture-2",
+    "title": "The single-radio constraint",
+    "png": "01-architecture-2.png",
+    "svg": "01-architecture-2.svg"
+  },
+  {
+    "id": "01-architecture-3",
+    "title": "Connection sequence",
+    "png": "01-architecture-3.png",
+    "svg": "01-architecture-3.svg"
+  },
+  {
+    "id": "01-architecture-4",
+    "title": "Audio signal path",
+    "png": "01-architecture-4.png",
+    "svg": "01-architecture-4.svg"
+  },
+  {
+    "id": "01-architecture-5",
+    "title": "Drive lifecycle",
+    "png": "01-architecture-5.png",
+    "svg": "01-architecture-5.svg"
+  },
+  {
+    "id": "01-architecture-6",
+    "title": "Trust and failure boundaries",
+    "png": "01-architecture-6.png",
+    "svg": "01-architecture-6.svg"
+  },
+  {
+    "id": "04-audio-chain-1",
+    "title": "The actual cause",
+    "png": "04-audio-chain-1.png",
+    "svg": "04-audio-chain-1.svg"
+  },
+  {
+    "id": "04-audio-chain-2",
+    "title": "The car-only EQ profile",
+    "png": "04-audio-chain-2.png",
+    "svg": "04-audio-chain-2.svg"
+  },
+  {
+    "id": "04-audio-chain-3",
+    "title": "Diagnostic flow",
+    "png": "04-audio-chain-3.png",
+    "svg": "04-audio-chain-3.svg"
+  },
+  {
+    "id": "05-protocol-notes-1",
+    "title": "Discovery: three protocols, one deadlock",
+    "png": "05-protocol-notes-1.png",
+    "svg": "05-protocol-notes-1.svg"
+  },
+  {
+    "id": "06-diagnostics-1",
+    "title": "Workflow",
+    "png": "06-diagnostics-1.png",
+    "svg": "06-diagnostics-1.svg"
+  },
+  {
+    "id": "08-roadmap-1",
+    "title": "Sketch",
+    "png": "08-roadmap-1.png",
+    "svg": "08-roadmap-1.svg"
+  }
+]
