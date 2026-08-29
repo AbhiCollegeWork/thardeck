@@ -109,6 +109,37 @@ Use both together. A session has two ends, and the tablet alone can prove the ne
 
 ---
 
+## `power-watch.sh` and `analyze-power.py`
+
+Energy telemetry on both devices. Neither exposes an instantaneous current
+sensor to the shell, so the logger records the fuel gauge coulomb counter and
+differences it. That is the integrated truth rather than a noisy instant, and
+multiplied by voltage it gives real average power.
+
+```bash
+adb -s <DEVICE> push power-watch.sh /data/local/tmp/
+adb -s <DEVICE> shell "nohup setsid env ROLE=tab sh /data/local/tmp/power-watch.sh >/dev/null 2>&1 &"
+# ROLE=phone on the source device, which connects out to 5288 rather than listening
+```
+
+Afterwards:
+
+```bash
+adb pull /sdcard/Download/aa-diag/power-tab.csv
+adb pull /sdcard/Download/aa-diag/power-phone.csv
+python analyze-power.py .
+```
+
+It reports mA, mW and mAh separately for projecting and idle, and separately
+for on-battery and on-charge.
+
+> **A device that is charging reports NET charge, not consumption.** For a
+> figure that means anything, do at least one drive with the device unplugged.
+> The counter also updates in coarse steps every 30 to 60 seconds, so short
+> windows are noise. Segments under about two minutes are discarded.
+
+---
+
 ## Privacy
 
 Pulled logs contain **SSIDs, BSSIDs, MAC addresses and network history**. The repo `.gitignore` excludes `drive-logs/`, `*.csv` and `logcat*.txt` - keep it that way, and scrub before attaching anything to an issue. See [Diagnostics § Privacy](../docs/06-diagnostics.md#privacy).
