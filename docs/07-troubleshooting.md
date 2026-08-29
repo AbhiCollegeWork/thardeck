@@ -17,6 +17,7 @@ Every failure hit during this build, what caused it, and how it was fixed - incl
 | "Self Mode" hangs at the animation | [§9](#9-self-mode-hangs-at-the-animation) |
 | adb worked yesterday, refuses today | [§10](#10-adb-stops-connecting-after-about-a-week) |
 | Screen freezes mid-drive, recovers by itself | [§11](#11-screen-freezes-mid-drive-then-recovers) |
+| Car icon or heading arrow missing, map stops following | [§12](#12-car-icon-and-heading-arrow-missing-map-stops-following) |
 | Noise or hum in the speakers | [04 - Audio Chain](04-audio-chain.md#the-noise-problem) |
 | Bass thin after fitting an isolator | [04 - Audio Chain](04-audio-chain.md#recovering-the-bass) |
 
@@ -257,6 +258,8 @@ adb disconnect <ip:port>
 
 **Symptom** - the picture stops dead on one frame, stays frozen for anywhere between 30 seconds and 4 minutes, then comes back on its own. No corruption, no macroblocks, just a still image. Audio keeps playing normally throughout, because audio never crosses the Wi-Fi link.
 
+> **Cause found.** This section originally recorded an unexplained fault. Two-ended instrumentation identified it: **the receiver app is being killed by the system while it is projecting.** The evidence and the fix are below.
+
 **This is a different fault from [§2](#2-video-corrupts-into-macroblocks), and the two are easy to confuse.** Corruption is a damaged stream. A freeze is no stream at all. They have opposite causes and opposite fixes, so establish which one you have before doing anything.
 
 ### Telling them apart
@@ -283,9 +286,55 @@ RSSI stayed between -34 and -44 dBm and throughput between 433 and 866 Mbps for 
 
 **That rules out the whole network layer.** Signal, range, channel contention, roaming and band selection are all excluded by the numbers. The TCP session died while the pipe underneath it was wide open.
 
-### What it narrows to
+### The cause
 
-Something above the transport ended the session. In order of likelihood:
+The tablet-side watcher records the receiver's process ID alongside every session transition. That single field settled it:
+
+```
+20:43:44  SESSION_UP    apppid=12189
+20:43:55  SESSION_DOWN  apppid=13850     <- different process
+21:42:13  SESSION_DOWN  apppid=          <- no process at all
+21:43:15  SESSION_UP    apppid=5724
+21:45:39  SESSION_DOWN  apppid=          <- gone again
+```
+
+**The process ID changes at every single drop, and is sometimes empty.** The app is not losing its socket. It is being killed and restarted, and the session dies with it.
+
+Confirmed directly in the system log:
+
+```
+ActivityManager: Process com.andrerinas.headunitrevived (pid 23445) has died: fg SVC
+ActivityManager: Killing 13331:com.andrerinas.headunitrevived (adj 850): Chimera #0
+```
+
+`fg SVC` means it died while running as a **foreground service**, which is what it does while projecting. One captured log file recorded **16 restarts**. On the worst evening there were nine session drops in twenty-seven minutes.
+
+### The fix
+
+Being exempt from Doze is not enough. Vendor builds run additional memory and battery management that reclaims processes independently, and the receiver was in the default app-standby bucket.
+
+```bash
+# exempt the receiver from app standby entirely
+adb shell am set-standby-bucket com.andrerinas.headunitrevived active
+adb shell dumpsys deviceidle whitelist +com.andrerinas.headunitrevived
+
+# verify: bucket 5 is EXEMPTED, 10 is ACTIVE, higher numbers are throttled
+adb shell am get-standby-bucket com.andrerinas.headunitrevived
+```
+
+Also do these in the tablet's own settings, because they are separate mechanisms from the ones above:
+
+| Setting | Value |
+|---|---|
+| Battery for the receiver app | Unrestricted |
+| Adaptive battery | Off, or add the app to the never-sleeping list |
+| Put unused apps to sleep | Off, or exempt the app |
+
+**Reduce memory pressure too.** The reference tablet runs over 800 tasks with roughly 2.5 GB of swap in use. The fewer apps competing, the less often anything gets reclaimed.
+
+### Other candidates, now excluded or demoted
+
+Something above the transport ended the session. For completeness, the alternatives that were considered:
 
 | Candidate | Why it fits | How to confirm |
 |---|---|---|
@@ -304,6 +353,59 @@ Two lessons, both now built into the tooling:
 
 1. **Supervise anything long-running.** `scripts/tab-watch.sh` restarts logcat within 30 seconds of it dying and records that it happened.
 2. **Capture both ends.** Only the tablet was instrumented. A session has two ends and either can end it, so `scripts/phone-watch.sh` now records the source side: whether Android Auto is projecting, whether its process is alive, the Bluetooth link state, hotspot clients, and temperature.
+
+
+---
+
+## 12. Car icon and heading arrow missing, map stops following
+
+**Symptom** - the map is drawn and the interface responds, but the blue car icon and the direction arrow are absent, and the map stops following the vehicle. It looks like a frozen screen and is easily mistaken for [§11](#11-screen-freezes-mid-drive-then-recovers), but it is a completely different fault.
+
+### Telling it apart from a real freeze
+
+| | Session freeze (§11) | Map not updating (§12) |
+|---|---|---|
+| Car icon | Frozen in place | **Absent entirely** |
+| Heading arrow | Frozen | **Absent** |
+| Session on port 5288 | Drops to zero | Stays established |
+| Receiver process ID | Changes | Unchanged |
+| Touch response | Dead | Normal |
+
+If the interface still responds to touch and the session never dropped, the video path is fine and the problem is **location**.
+
+### Cause
+
+**Battery Saver was enabled on the phone.** It throttles location, and Android Auto takes its position from the phone, not from the head unit. The receiver declares only two sensors, `SENSOR_TYPE_DRIVING_STATUS` and `SENSOR_TYPE_NIGHT`, and no position sensor at all, so there is no second source to fall back on.
+
+The measured state during the affected period:
+
+```
+low_power                = 1              <- Battery Saver on
+location requests        = BALANCED       <- low power, network biased, not high accuracy
+last fix                 = network, hAcc=100.0 m, et=+9d22h
+```
+
+A hundred-metre network fix is far too coarse for Maps to place a vehicle on a road or derive a heading, so it draws neither. The map keeps its last tiles and simply stops following.
+
+### The fix
+
+```bash
+# turn Battery Saver off
+adb shell settings put global low_power 0
+
+# exempt navigation from battery optimisation so it survives if it is re-enabled
+adb shell dumpsys deviceidle whitelist +com.google.android.apps.maps
+adb shell dumpsys deviceidle whitelist +com.google.android.projection.gearhead
+adb shell am set-standby-bucket com.google.android.apps.maps active
+```
+
+Also confirm in the phone's settings that location is set to high accuracy, and that Wi-Fi and Bluetooth scanning for location are enabled.
+
+> **Battery Saver is often switched on automatically at a low battery threshold.** If navigation degrades late in a long drive but is fine at the start, this is very likely the reason. Keeping the phone charged in the car avoids the trigger entirely, and the exemptions above limit the damage if it does fire.
+
+### Confirming it
+
+The phone-side watcher records the location provider, its accuracy and the age of the fix on every row. During a healthy drive expect the provider to be `gps` or `fused` with an accuracy in single-digit metres. A `network` provider, an accuracy near 100, or a fix age that keeps growing all mean location is starved.
 
 
 ---

@@ -13,7 +13,22 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 
 ### Pending validation
 - Record-while-projecting feasibility for the planned dash cam is unmeasured
-- The five mid-drive freezes are localised to the session layer but not yet attributed to a specific cause; capture is now in place to catch the next one
+- Both fixes in 1.2.0 are applied and evidenced but not yet confirmed over a full drive
+
+## [1.2.0] - 2026-08-29
+
+Both open faults identified, on the first run of the two-ended instrumentation.
+
+### Fixed
+- **Mid-drive freezes: cause found.** The receiver app is killed by the system while projecting. The process ID changes at every session drop and is sometimes absent, and the system log records it dying as a foreground service, with 16 restarts in a single captured log. Doze exemption alone is not enough; the app also needs exemption from app standby and from vendor battery management.
+- **Car icon and heading arrow missing: cause found.** Battery Saver was enabled on the phone, throttling location to a 100 metre network fix. Android Auto takes position from the phone and the receiver declares no position sensor, so there is no fallback. Fixed by disabling Battery Saver and exempting Maps and Android Auto from battery optimisation.
+
+### Added
+- `TD-007` section 12: distinguishing a map that has stopped following from a genuinely frozen session. They look alike and have unrelated causes.
+- Location provider, accuracy and fix age are now recorded on the phone every 5 seconds
+
+### Fixed in tooling
+- The phone watcher reported Android Auto as dead for entire drives because `pidof` was matching the wrong process name. A probe that silently returns nothing reads as evidence, which is worse than having no probe.
 
 ## [1.1.0] - 2026-08-24
 
@@ -56,6 +71,7 @@ First public release. Documents a working, daily-driven installation.
 - Receiver app self-launching outside the car
 - Bass loss introduced by the ground-loop isolator
 
-[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.2.0
 [1.1.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.1.0
 [1.0.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.0.0

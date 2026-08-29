@@ -106,6 +106,19 @@ Between them, a freeze is now attributable: `events.log` timestamps the session 
 
 **Filtering matters too.** The original capture used `-b all`, roughly 7 MB an hour of mostly irrelevant chatter, which is both a storage problem and a reason for the system to kill it. The supervised version filters to the tags that carry the answer and writes far less.
 
+## What two-ended capture caught
+
+The rebuilt instrumentation resolved both open faults on its first run, and it is worth recording which field did it, because neither was obvious.
+
+**The receiver's process ID, logged next to every session transition.** Watching the ID change at every single drop turned "the session dies for unknown reasons" into "the app is being killed" in one reading. A session-state log without the process ID would have proved nothing.
+
+**Location provider, accuracy and fix age on the phone.** The first version of the phone watcher did not record location at all, and the fault it needed to explain was entirely a location fault. Three fields added later gave the answer immediately.
+
+Two instrumentation lessons came out of it:
+
+- **Verify that a probe returns what you think it does.** `pidof com.google.android.projection.gearhead` matched nothing, because Android Auto runs under a suffixed process name. It logged `dead` for a whole drive while projection was plainly working. A probe that silently returns nothing is worse than no probe, because it reads as evidence.
+- **Record the thing the user actually sees.** The reported symptom was a missing car icon. Nothing in the original capture described position quality, so nothing could confirm or exclude it.
+
 ## Surviving a drive
 
 The captures must survive adb disconnecting, the screen going off, and the tablet migrating from home Wi-Fi to the car hotspot. That is achieved with:
