@@ -389,8 +389,25 @@ A hundred-metre network fix is far too coarse for Maps to place a vehicle on a r
 
 ### The fix
 
+**Do not simply turn Battery Saver off.** Hosting the hotspot is a heavy, sustained load, and on a long drive the saver is what keeps the phone alive and cool enough to be useful. Disabling it trades a navigation fault for a battery fault.
+
+Android keeps the saver's *policy* separate from its on/off switch, so location can be exempted while every other restriction stays in force:
+
 ```bash
-# turn Battery Saver off
+# keep Battery Saver ON, but stop it throttling location
+adb shell settings put global battery_saver_constants 'location_mode=0'
+adb shell settings put global low_power 1
+```
+
+`location_mode=0` is NO_CHANGE: GPS behaves exactly as it would with the saver off, while CPU, background work and sync stay restricted. Verify it is really in force, not just stored:
+
+```bash
+adb shell "dumpsys power | grep location_mode"
+```
+
+If you would rather disable the saver entirely:
+
+```bash
 adb shell settings put global low_power 0
 
 # exempt navigation from battery optimisation so it survives if it is re-enabled
