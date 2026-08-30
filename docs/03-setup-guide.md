@@ -32,9 +32,10 @@
 > **Do not install Android Auto on the tablet.** It is not needed and it is not how this works. If you have installed it chasing the app's "Self Mode", uninstall it - see [Troubleshooting](07-troubleshooting.md#9-self-mode-hangs-at-the-animation).
 
 ### On the phone
-1. Install **AA Wireless Helper** from the Play Store.
-2. Confirm **Android Auto** is installed and has run at least once.
-3. Grant the Helper Location and Nearby devices permissions.
+1. Confirm **Android Auto** is installed and has run at least once.
+2. **Turn off auto-update for Android Auto**: Play Store, its app page, overflow menu, uncheck "Enable auto-update". Do this before anything else. An Android Auto update is what breaks this system, and it happens overnight without warning.
+
+> **Do not install a wireless helper app.** Android Auto 17.3 removed the connection intent they rely on, so they can no longer complete a connection. If you already have one, remove it: it sits permanently searching and costs battery for nothing.
 
 ---
 

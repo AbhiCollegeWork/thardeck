@@ -35,9 +35,10 @@ Every component in the reference build, with the numbers that were actually meas
 
 | Component | Version | Source |
 |---|---|---|
-| Open Headunit (tablet receiver) | 3.2.1 | [github.com/andreknieriem/open-headunit](https://github.com/andreknieriem/open-headunit) |
-| AA Wireless Helper (phone) | 1.9.3 | Play Store |
-| Android Auto (phone) | 17.2 | Play Store |
+| Open Headunit (tablet receiver) | 3.2.6 | [github.com/andreknieriem/open-headunit](https://github.com/andreknieriem/open-headunit) |
+| Android Auto (phone) | 17.4, **auto-update disabled** | Play Store |
+
+**No helper app.** Earlier versions of this build used AA Wireless Helper 1.9.3 on the phone. Android Auto 17.3 removed the connection intent it depended on, so it can no longer complete a connection and has been removed. A/B tested before removal: connect time, reconnect time and frame rate were identical with and without it. See [Troubleshooting section 13](07-troubleshooting.md#13-nothing-connects-after-an-android-auto-update).
 
 **Naming trap:** the app was formerly *Headunit Revived*. The package ID is still `com.andrerinas.headunitrevived`, but the classes moved to `com.andrerinas.openheadunit.*`. Launching the old activity path fails silently:
 

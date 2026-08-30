@@ -122,31 +122,29 @@ sequenceDiagram
     autonumber
     participant D as Car 12 V
     participant P as Phone
-    participant H as AA Helper
     participant G as Android Auto
     participant T as Tablet
     participant S as Stereo
 
+    Note over P,G: Once per phone reboot: developer menu, Start head unit server
+    G->>G: listens on TCP 5277
     D->>P: Ignition on, charging starts
     P->>S: Bluetooth A2DP connects to dongle
-    Note over P,S: The only unambiguous "in the car" signal
-    P->>P: Routine fires, car EQ profile applied
-    P->>P: Hotspot raised (2.4 GHz band)
+    P->>P: Hotspot raised
     T->>P: Tablet joins hotspot
     T->>T: Open Headunit opened, Wi-Fi tile tapped
-    T->>T: Receiver listens on TCP 5288
-    H->>T: Discovery over hotspot subnet
-    H->>G: Trigger wireless projection
-    G->>T: TCP connect to 5288
+    T->>G: NetworkDiscovery probes the phone on 5277
     G-->>T: Handshake: screen geometry, codecs, sinks
     Note over G,T: Geometry negotiated ONCE. Immutable thereafter.
-    G->>T: H.264 video stream
+    G->>T: H.264 or H.265 video stream
     T->>G: Touch events
     G->>S: Audio stays on A2DP, never crosses to the tablet
     Note over T,S: Picture on the tablet, sound in the car
 ```
 
-Step 11 is the architectural constraint that explains a whole class of bugs: **the handshake happens once**. Screen size, orientation and margins are baked in at that moment. Rotate the tablet mid-session and the picture breaks; there is no renegotiation path in the protocol. The only fix is deterministic orientation before connect.
+**The direction is inverted from what you would expect.** The tablet dials the phone, not the other way round. Android Auto acts as a head unit *server* on port 5277 and the tablet connects in. That is a developer feature, and since Android Auto 17.3 it is the only wireless route that still works: Google removed the connection intent that helper apps used to hand Android Auto a head unit address. See [Protocol Notes](05-protocol-notes.md#android-auto-173-removed-the-helper-path).
+
+The handshake step is the architectural constraint that explains a whole class of bugs: **the handshake happens once**. Screen size, orientation and margins are baked in at that moment. Rotate the tablet mid-session and the picture breaks; there is no renegotiation path in the protocol. The only fix is deterministic orientation before connect.
 
 ---
 

@@ -60,8 +60,8 @@ flowchart LR
 | 3 | [Open Headunit](https://github.com/andreknieriem/open-headunit) (FOSS) | The receiver app | free |
 | 4 | AA Wireless Helper | Phone-side discovery | free |
 | 5 | Bluetooth→AUX dongle | Audio into the car stereo | ~₹600 / $8 |
-| 6 | 3.5 mm ground-loop isolator | Kills 12 V electrical noise | ~₹300 / $4 |
-| 7 | Tablet mount + USB-C car charger | Physical install | ~₹800 / $10 |
+| 5 | 3.5 mm ground-loop isolator | Kills 12 V electrical noise | ~₹300 / $4 |
+| 6 | Tablet mount + USB-C car charger | Physical install | ~₹800 / $10 |
 
 **No paid software. No rooting. No dashboard disassembly.**
 

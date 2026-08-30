@@ -31,6 +31,62 @@ This check is **UID-independent**, so it survives app reinstalls and version cha
 
 ---
 
+## Android Auto 17.3 removed the helper path
+
+**This is the single most important thing in this document.** Google disabled the connection intent that helper apps used, in Android Auto **17.3**. Any setup that relies on a companion app to hand Android Auto a head unit address stopped working, permanently, without warning, on whatever day the phone auto-updated.
+
+Confirmed by the Open Headunit maintainer in [upstream #908](https://github.com/andreknieriem/open-headunit/issues/908):
+
+> Since AA 17.3+ Wireless Helper will no longer work as Google disable the connection intent that it used ... we already decompiled AA 17.4, and there is no workaround for now.
+
+Verified independently here by a controlled A/B: the identical broadcast, on the identical network topology, with the receiver armed and reachable, **worked on 17.2 and does nothing on 17.4**. On 17.4 the phone never opens an outbound socket to the head unit at all, so the failure is upstream of the network entirely.
+
+```bash
+# how to tell instantly whether the phone is even trying
+adb -s <PHONE> shell "cat /proc/net/tcp /proc/net/tcp6" | awk '$3 ~ /14A8$/'
+# no rows = the phone was never told where to connect
+```
+
+**Turn off auto-update for Android Auto.** Play Store, app page, overflow menu, uncheck "Enable auto-update". A working car system should not be able to break itself overnight.
+
+---
+
+## The head unit server: the path that still works
+
+Android Auto can act as a head unit **server** and listen on TCP **5277** for a client to connect to it. That inverts the usual direction: instead of the phone dialling the head unit, the head unit dials the phone. It is a developer feature, and it is currently the only wireless route that survives 17.4.
+
+**On the phone**
+
+1. Android Auto settings. Reachable directly:
+   ```bash
+   adb shell am start -n com.google.android.projection.gearhead/.companion.settings.DefaultSettingsActivity
+   ```
+2. Scroll to the version and tap it ten times to enable developer mode.
+3. Overflow menu, **Start head unit server**. Port 5277 opens.
+
+```bash
+# confirm it is listening (149D is 5277 in hex)
+adb shell "cat /proc/net/tcp /proc/net/tcp6" | awk '$4=="0A"' | grep -i 149D
+```
+
+**On the head unit** nothing changes. `NetworkDiscovery` already probes port 5277 in the strategies listed below, which is why the receiver was scanning fruitlessly for so long: it had been looking for this server all along, and nothing was ever listening.
+
+Measured: connection in **2 seconds**, 50 fps, zero dropped frames.
+
+### What persists and what does not
+
+| Event | Server survives |
+|---|---|
+| Projection session ends | yes |
+| Head unit screen off | yes |
+| Phone screen off, forced deep doze | yes |
+| Phone reboot | no |
+| Android Auto force-stopped or updated | no |
+
+So it is **one action per phone reboot**, not per drive. It cannot be automated: `am start`, `am start-foreground-service` and every documented broadcast action were tried and none open the port, there is no start-on-boot option in the developer settings, and the menu entry is not a toggle.
+
+---
+
 ## Discovery: three protocols, one deadlock
 
 The phone-side helper and the tablet-side receiver must agree on *how* to find each other. They do not negotiate this. If they disagree, both sides wait forever with no error.
@@ -145,7 +201,20 @@ The receiver advertises up to three audio sinks:
 
 Verified on the phone side: Android Auto requests audio focus, immediately abandons it, and no Android Auto audio device appears in the routing table.
 
-### 3. Only two sensors are declared
+### 3. No alphabetic keycodes are declared
+
+The receiver advertises **39 keycodes**: navigation, media transport, volume, `TAB`, `SPACE`, `ENTER`, `HOME`, and the digits `0` to `9`. There are no letter keys.
+
+Android Auto therefore knows the head unit cannot accept typed characters, and falls back to the phone: focusing a text field on the head unit **wakes the phone and opens the phone keyboard**. Measured with a Maps search field focused:
+
+```
+phone foreground : com.google.android.apps.maps/...ghost.GhostActivity  displayId=149(type=VIRTUAL)
+phone IME        : mInputShown=true
+```
+
+Filed upstream as [#913](https://github.com/andreknieriem/open-headunit/issues/913). Until it is fixed, **use voice search**, which skips text entry altogether and is the right habit at the wheel anyway.
+
+### 4. Only two sensors are declared
 
 The receiver declares exactly `SENSOR_TYPE_DRIVING_STATUS` and `SENSOR_TYPE_NIGHT`.
 

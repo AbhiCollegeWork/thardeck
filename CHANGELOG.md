@@ -13,7 +13,32 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 
 ### Pending validation
 - Record-while-projecting feasibility for the planned dash cam is unmeasured
-- Both fixes in 1.2.0 are applied and evidenced but not yet confirmed over a full drive
+- The head unit server route is bench-tested in the car topology but not yet over a full drive
+- Projection can currently start outside the car; gating is designed but not implemented, see TD-007 section 15
+
+## [1.3.0] - 2026-08-30
+
+The wireless path changed completely, because Google removed the one this system was built on.
+
+### Changed
+- **Android Auto 17.3 removed the connection intent that helper apps used.** Helper-based wireless setups no longer work and cannot be fixed by configuration. Confirmed by the Open Headunit maintainer in upstream #908 and reproduced here by A/B: the identical command on the identical topology worked on 17.2 and does nothing on 17.4, with the phone never opening a socket.
+- **The system now uses Android Auto's own head unit server on TCP 5277.** The head unit dials the phone rather than the reverse. Connects in about 2 seconds at 50 fps with no dropped frames. One action per phone reboot, not per drive.
+- **The helper app has been removed.** A/B tested first: connect time, reconnect time and frame rate were identical with and without it, and it survives park, resume and phone deep doze unchanged. It was also holding a permanent search state and drawing power for nothing.
+- Receiver updated to 3.2.6. Projection raised to 2K, which switches the decoder to HEVC.
+
+### Added
+- `TD-007` section 13: nothing connects after an Android Auto update, including the one-command test for whether the phone is even trying, and a warning not to uninstall Android Auto's updates on Samsung hardware
+- `TD-007` section 14: projection dies when a Bluetooth keyboard connects, filed upstream as #912
+- `TD-007` section 15: projection starting when you are not driving, and why the disambiguation problem returned through a different door
+- `TD-005`: the 17.3 change, the head unit server, and what the server survives
+
+### Reported upstream
+- [#912](https://github.com/andreknieriem/open-headunit/issues/912) `AapProjectionActivity` does not declare `keyboard` or `keyboardHidden` in configChanges, so a Bluetooth keyboard connecting destroys the activity and kills the session
+- [#913](https://github.com/andreknieriem/open-headunit/issues/913) no alphabetic keycodes are advertised, so text entry falls back to the phone keyboard
+
+### Fixed
+- Pixel density had been reset to 172 by the app update, which made the projected UI look badly zoomed. Restored to 218.
+- Auto-update disabled for Android Auto, so the system cannot break itself overnight again
 
 ## [1.2.0] - 2026-08-29
 
@@ -71,7 +96,8 @@ First public release. Documents a working, daily-driven installation.
 - Receiver app self-launching outside the car
 - Bass loss introduced by the ground-loop isolator
 
-[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/AbhiCollegeWork/thardeck/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.3.0
 [1.2.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.2.0
 [1.1.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.1.0
 [1.0.0]: https://github.com/AbhiCollegeWork/thardeck/releases/tag/v1.0.0

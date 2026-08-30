@@ -18,6 +18,9 @@ Every failure hit during this build, what caused it, and how it was fixed - incl
 | adb worked yesterday, refuses today | [§10](#10-adb-stops-connecting-after-about-a-week) |
 | Screen freezes mid-drive, recovers by itself | [§11](#11-screen-freezes-mid-drive-then-recovers) |
 | Car icon or heading arrow missing, map stops following | [§12](#12-car-icon-and-heading-arrow-missing-map-stops-following) |
+| Nothing connects at all after an Android Auto update | [§13](#13-nothing-connects-after-an-android-auto-update) |
+| Projection dies when a Bluetooth keyboard connects | [§14](#14-projection-dies-when-a-bluetooth-keyboard-connects) |
+| Projection starts by itself when you are not driving | [§15](#15-projection-starts-when-you-are-not-driving) |
 | Noise or hum in the speakers | [04 - Audio Chain](04-audio-chain.md#the-noise-problem) |
 | Bass thin after fitting an isolator | [04 - Audio Chain](04-audio-chain.md#recovering-the-bass) |
 
@@ -423,6 +426,67 @@ Also confirm in the phone's settings that location is set to high accuracy, and 
 ### Confirming it
 
 The phone-side watcher records the location provider, its accuracy and the age of the fix on every row. During a healthy drive expect the provider to be `gps` or `fused` with an accuracy in single-digit metres. A `network` provider, an accuracy near 100, or a fix age that keeps growing all mean location is starved.
+
+
+---
+
+## 13. Nothing connects after an Android Auto update
+
+**Symptom** - everything worked yesterday. Today the helper app searches forever and the head unit never connects. USB still works.
+
+**Cause** - **Android Auto 17.3 removed the connection intent helper apps used.** It is not configuration, and no setting will bring it back. See [Protocol Notes](05-protocol-notes.md#android-auto-173-removed-the-helper-path) for the evidence and the upstream confirmation.
+
+**The one-command test.** Ask whether the phone is even trying:
+
+```bash
+adb -s <PHONE> shell "cat /proc/net/tcp /proc/net/tcp6" | awk '$3 ~ /14A8$/'
+```
+
+No rows means the phone was never told where to connect. That excludes your network, your head unit and your settings in a single step, and points squarely at the phone side.
+
+**Fix** - switch to the [head unit server](05-protocol-notes.md#the-head-unit-server-the-path-that-still-works), then **turn off auto-update for Android Auto** so it cannot happen again.
+
+> **Do not try to roll Android Auto back by uninstalling its updates.** On a Samsung device Android Auto is an `UPDATED_SYSTEM_APP` whose factory version is a **non-functional stub**. `pm uninstall-system-updates` leaves the phone with no working Android Auto at all and needs a Play Store reinstall, which only gives you the newest version back. This was learned the hard way.
+
+---
+
+## 14. Projection dies when a Bluetooth keyboard connects
+
+**Symptom** - projection drops the moment a Bluetooth keyboard connects or disconnects. Typing is fine; the transitions are what kill it.
+
+**Cause** - `AapProjectionActivity` does not declare `keyboard` or `keyboardHidden` in `android:configChanges`, so Android destroys and recreates the activity on a keyboard configuration change. Screen geometry is negotiated once at handshake and cannot survive that.
+
+Filed upstream as [#912](https://github.com/andreknieriem/open-headunit/issues/912) with a one-line fix.
+
+**It bites harder than it reads.** A BLE keyboard that sleeps when idle reconnects on its own, so this fires repeatedly with nobody touching anything. If you also run software that *heals* keyboard reconnections, the two features fight each other.
+
+**Workaround** - turn the keyboard off while driving. You should not be typing at the wheel regardless.
+
+---
+
+## 15. Projection starts when you are not driving
+
+**Symptom** - Android Auto appears on the head unit while you are using the tablet for something else, typically after tethering it to the phone.
+
+**Cause** - three conditions have to be true for projection, and all three quietly stay true outside the car:
+
+| Condition | True outside the car? |
+|---|---|
+| Head unit server listening on 5277 | yes, it persists until phone reboot |
+| Receiver app running and probing | yes, if close-on-disconnect is off |
+| Both devices on the same network | yes, whenever you tether or share Wi-Fi |
+
+Nothing in that set is car-specific, so the head unit connects whenever it can.
+
+> **This is the disambiguation problem from [Architecture](01-architecture.md#the-context-disambiguation-problem) returning through a different door.** The original rule still holds: the hotspot is not a car signal, because you tether for work too. The head unit server route reintroduced the problem because the **head unit** now decides when to connect, and it has no idea whether you are driving.
+
+**Gating options, best first:**
+
+1. **Native mode.** It inverts control: the phone decides when to project, keyed to the car's Bluetooth. Structurally car-only, and it needs no developer-mode server. Requires a Bluetooth restart and re-pair, and tablets that cannot read their own Wi-Fi MAC need a Static BSSID entered by hand.
+2. **Gate the receiver.** Auto-start on Bluetooth pointed at a device that exists only in your car, with close-on-disconnect on, so it is not armed anywhere else.
+3. **Gate the server.** Start it getting in, stop it getting out. Works today, but two actions per drive and easy to forget.
+
+**Do not gate on the hotspot or on the head unit joining a network.** Those fire during ordinary tethering, which is the whole problem.
 
 
 ---
