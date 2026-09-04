@@ -28,6 +28,7 @@ RSSI -25 dBm  +  Rx 1-6 Mbps   =   contention, not range
 | [`aa-wifi-sampler.sh`](../scripts/aa-wifi-sampler.sh) | The on-device Wi-Fi sampler |
 | [`tab-watch.sh`](../scripts/tab-watch.sh) | Supervised capture on the tablet, restarts logcat if it dies |
 | [`phone-watch.sh`](../scripts/phone-watch.sh) | Source-side capture on the phone |
+| [`car-watch.sh`](../scripts/car-watch.sh) | Head unit server lifetime. Records when Android Auto's `:car` process is recycled and whether port 5277 dies with it |
 
 ### Workflow
 
@@ -95,6 +96,18 @@ sleep 40
 adb shell "ps -A | grep -c '[l]ogcat'"        # back to 1
 adb shell "cat /sdcard/Download/aa-diag/events.log"
 ```
+
+**Match the sampling rate to what you are measuring, not to what you can afford to log.** The source-side logger on this project once ran five `dumpsys` calls every five seconds for days and drove the phone to 45.7 C battery and thermal status 3, which is severe. It was measuring a fault that unfolds over hours. `car-watch.sh` is the corrected pattern for slow questions: two cheap `/proc` reads every five minutes, roughly three thousand times less work, safe to leave running for days.
+
+```bash
+adb push scripts/car-watch.sh /data/local/tmp/
+adb shell "chmod +x /data/local/tmp/car-watch.sh"
+adb shell "setsid /system/bin/sh /data/local/tmp/car-watch.sh </dev/null >/dev/null 2>&1 &"
+adb shell "cat /sdcard/car-watch.log"     # read back
+adb shell "pkill -f car-watch.sh"         # stop
+```
+
+> **`nohup ... &` alone is not enough on Android.** The shell that `adb shell` starts kills its process group on disconnect, so the watcher dies the moment the command returns. `setsid` detaches it into its own session and it survives. Confirm with `ps -A -o PID,ARGS | grep car-watch` before trusting a long capture.
 
 **Capture both ends.** A projection session has two ends and either can end it. Instrumenting only the receiver can prove the network was healthy but can never say what tore the session down. `phone-watch.sh` records the source side every five seconds:
 
