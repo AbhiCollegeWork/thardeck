@@ -126,7 +126,7 @@ sequenceDiagram
     participant T as Tablet
     participant S as Stereo
 
-    Note over P,G: Once per phone reboot: developer menu, Start head unit server
+    Note over P,G: Developer menu, Start head unit server. Dies with the :car process
     G->>G: listens on TCP 5277
     D->>P: Ignition on, charging starts
     P->>S: Bluetooth A2DP connects to dongle

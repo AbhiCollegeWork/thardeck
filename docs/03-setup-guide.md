@@ -162,6 +162,20 @@ Not "5 GHz preferred", not "Performance". This is the single fix for [macroblock
 
 Also turn **"One-time password" OFF** so the tablet can rejoin without a prompt.
 
+### 3.1a - Turn off adaptive Wi-Fi on the phone
+
+Samsung's "Switch between networks" and the settings behind it make the phone move itself to another network mid-session, which drops the projection. The receiver app warns about this by name when it sees a disconnect.
+
+```bash
+adb shell settings put global auto_wifi 0
+adb shell settings put global sem_wifi_switch_to_better_wifi_enabled 0
+adb shell settings put global wifi_watchdog_poor_network_test_enabled 0
+```
+
+Set these on the **phone**. Note this changes general Wi-Fi behaviour on that phone, not only in the car: it will no longer move itself to a network it considers better.
+
+> **The hotspot subnet is not stable.** The same phone handed out three entirely different private subnets across three sessions, so the head unit had a different address each time. Nothing in your setup should hardcode an address; discovery has to find the phone each session.
+
 ### 3.2 - Bluetooth audio dongle
 
 1. Power the dongle from the car's 12 V (via its converter).

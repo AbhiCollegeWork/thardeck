@@ -21,6 +21,8 @@ Every failure hit during this build, what caused it, and how it was fixed - incl
 | Nothing connects at all after an Android Auto update | [§13](#13-nothing-connects-after-an-android-auto-update) |
 | Projection dies when a Bluetooth keyboard connects | [§14](#14-projection-dies-when-a-bluetooth-keyboard-connects) |
 | Projection starts by itself when you are not driving | [§15](#15-projection-starts-when-you-are-not-driving) |
+| Part of the screen smears and stays smeared | [§16](#16-part-of-the-screen-smears-and-stays-smeared) |
+| Picture is portrait, or frame rate sits at zero | [§17](#17-orientation-silently-reverts) |
 | Noise or hum in the speakers | [04 - Audio Chain](04-audio-chain.md#the-noise-problem) |
 | Bass thin after fitting an isolator | [04 - Audio Chain](04-audio-chain.md#recovering-the-bass) |
 
@@ -456,11 +458,11 @@ No rows means the phone was never told where to connect. That excludes your netw
 
 **Cause** - `AapProjectionActivity` does not declare `keyboard` or `keyboardHidden` in `android:configChanges`, so Android destroys and recreates the activity on a keyboard configuration change. Screen geometry is negotiated once at handshake and cannot survive that.
 
-Filed upstream as [#912](https://github.com/andreknieriem/open-headunit/issues/912) with a one-line fix.
+**Fixed upstream.** Filed as [#912](https://github.com/andreknieriem/open-headunit/issues/912), accepted, and shipped in **Open Headunit 3.3.0** as "Fix: Projection dies when a Bluetooth keyboard connects or disconnects". On 3.3.0 or later this no longer happens.
 
 **It bites harder than it reads.** A BLE keyboard that sleeps when idle reconnects on its own, so this fires repeatedly with nobody touching anything. If you also run software that *heals* keyboard reconnections, the two features fight each other.
 
-**Workaround** - turn the keyboard off while driving. You should not be typing at the wheel regardless.
+**If you are stuck on an older build**, turn the keyboard off while driving. You should not be typing at the wheel regardless.
 
 ---
 
@@ -487,6 +489,77 @@ Nothing in that set is car-specific, so the head unit connects whenever it can.
 3. **Gate the server.** Start it getting in, stop it getting out. Works today, but two actions per drive and easy to forget.
 
 **Do not gate on the hotspot or on the head unit joining a network.** Those fire during ordinary tethering, which is the whole problem.
+
+
+---
+
+## 16. Part of the screen smears and stays smeared
+
+**Symptom** - one region of the projected picture turns into coloured streaking and **stays** that way for thirty to forty-five seconds, while the rest of the screen looks perfectly normal. On a split layout it is typically the media card that breaks while the map stays clean.
+
+### The asymmetry is the clue
+
+That is not random corruption. It is one damaged reference frame, and the two halves of the screen behave differently afterwards:
+
+| Region | Behaviour |
+|---|---|
+| Map | redraws constantly, so fresh pixels overwrite the damage and it **self-heals** |
+| Media card, or any static panel | nothing changes, so every later frame keeps predicting from the corrupted reference and the damage **persists** |
+
+So the region that looks broken is simply the region nothing is repainting. That is worth internalising as a general rule: **when only part of a projected screen is corrupt, look at what is not being redrawn, not at what is.**
+
+### Cause
+
+Older builds **shed reference frames** when the transport falls behind. A shed frame is one that later frames predict from, so losing it corrupts everything downstream until a keyframe arrives.
+
+Why the wait is so long: the protocol has no direct keyframe request, so unless the receiver escalates, the picture waits for the phone's own group-of-pictures cadence, which is roughly a minute.
+
+### Fix
+
+**Update to Open Headunit 3.3.0 or later.** Two changes in that release address it:
+
+- *"Video: pace the transport thread instead of shedding reference frames"* removes the cause
+- *"Fix/session lifecycle and video concealment"* adds the recovery
+
+The recovery changes what you see. On a corruption report the picture now **freezes on the last good frame** rather than melting through the damage, and escalates to a focus release and regain cycle that produces a keyframe quickly. From `CorruptionConcealmentPolicy`:
+
+```
+CONCEAL_MAX_MS               = 3500 ms   longest the picture may be held still
+ESCALATED_REPAIR_OBSERVED_MS = 2780 ms   slowest repair measured end to end
+```
+
+So the worst case becomes a brief still frame instead of half a minute of smear.
+
+**The keyframe request throttle is not the knob.** It is already 1000 ms and was never the limiting factor. The delay came from corruption that was never detected, which is why the fix sits in the transport rather than in the request pacing.
+
+### Confirming
+
+The receiver prints a throughput line every five seconds:
+
+```bash
+adb shell "logcat -d" | grep "Throughput over"
+```
+
+`skipped` repeatedly above zero means frames are being shed. A healthy 3.3.0 session reads `dropped=0, skipped=0`.
+
+> **Measured here at 1080p:** `rendered=150 (30fps), fed=150, dropped=0, skipped=0, concealed=0`, HEVC hardware decoder, decode latency 20 ms with a p95 of 40 ms. At a higher resolution setting the same link ran at 52 to 53 fps, so **lowering the resolution did not raise the frame rate**. If smoothness is what you are after, the resolution setting is not the lever.
+
+---
+
+## 17. Orientation silently reverts
+
+**Symptom** - the picture comes up portrait, or the frame rate sits at zero with a live session and no errors anywhere.
+
+**Cause** - `ignoreOrientationRequest` has gone back to `true`. On Android 12L and later, large-screen devices ignore an app's orientation request unless that override is off, so projection negotiates **portrait geometry** and never renders correctly.
+
+```bash
+adb shell cmd window get-ignore-orientation-request     # want: false
+adb shell cmd window set-ignore-orientation-request false
+```
+
+Then **reconnect**, because geometry is negotiated once at handshake and cannot be renegotiated.
+
+> **This setting does not persist reliably.** It reverted twice during this work with no reboot in between. Check it first whenever the geometry or the frame rate looks wrong. It is a five second check that rules out a whole class of confusing symptoms.
 
 
 ---

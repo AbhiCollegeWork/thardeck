@@ -81,9 +81,39 @@ Measured: connection in **2 seconds**, 50 fps, zero dropped frames.
 | Head unit screen off | yes |
 | Phone screen off, forced deep doze | yes |
 | Phone reboot | no |
+| Android Auto's `:car` process recycled | **no** |
 | Android Auto force-stopped or updated | no |
 
-So it is **one action per phone reboot**, not per drive. It cannot be automated: `am start`, `am start-foreground-service` and every documented broadcast action were tried and none open the port, there is no start-on-boot option in the developer settings, and the menu entry is not a toggle.
+### It dies more often than a reboot
+
+The obvious assumption is that the server lasts until you reboot the phone. **It does not.** Measured on this phone:
+
+| Reading | Value |
+|---|---|
+| Phone uptime | 16 days, no reboot |
+| Age of `com.google.android.projection.gearhead:car` | 1 day 4 hours |
+
+The process hosting the server had been recycled about a day earlier, on a phone that had not rebooted in over two weeks, and the listening socket went with it. That is exactly when the head unit stopped connecting and the menu item had to be tapped again.
+
+Check which one you are looking at:
+
+```bash
+adb shell "ps -A -o PID,ETIME,NAME" | grep gearhead:car   # age of the hosting process
+adb shell uptime                                          # age of the phone
+```
+
+If the process is much younger than the phone, it was recycled and the server is gone.
+
+**The usual levers are already pulled and do not prevent it.** On this phone Android Auto is in the device idle whitelist and its standby bucket is 5, which is exempted:
+
+```bash
+adb shell am get-standby-bucket com.google.android.projection.gearhead   # 5 = exempted
+adb shell dumpsys deviceidle whitelist | grep gearhead                   # already listed
+```
+
+So this is not app standby and it is not doze, and it is not something a further exemption fixes. Treat the server as something that can disappear at any time rather than something that lasts until reboot.
+
+So it is **not reliably once per reboot**, and there is no way to make it automatic. It cannot be automated: `am start`, `am start-foreground-service` and every documented broadcast action were tried and none open the port, there is no start-on-boot option in the developer settings, and the menu entry is not a toggle.
 
 ---
 

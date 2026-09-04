@@ -13,8 +13,30 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 
 ### Pending validation
 - Record-while-projecting feasibility for the planned dash cam is unmeasured
-- The head unit server route is bench-tested in the car topology but not yet over a full drive
+- The 3.3.0 corruption fix is bench-verified but has not yet run a full drive
 - Projection can currently start outside the car; gating is designed but not implemented, see TD-007 section 15
+- Native mode would remove the head unit server entirely and gate on the car's Bluetooth, solving both the manual start and the false-trigger problem. Not attempted: it needs a Bluetooth restart and re-pair.
+
+## [1.4.0] - 2026-09-04
+
+Receiver updated to 3.3.0. One bug we filed came back fixed, and one long-standing assumption turned out to be wrong.
+
+### Fixed
+- **Video corruption that persisted for thirty to forty-five seconds is resolved upstream.** Open Headunit 3.3.0 paces the transport thread instead of shedding reference frames, which removes the cause, and adds concealment that freezes the last good frame and forces a keyframe rather than melting through the damage. The policy caps concealment at 3500 ms with a slowest observed repair of 2780 ms. Documented in TD-007 section 16.
+- **Upstream #912 is fixed and closed.** The Bluetooth keyboard crash we filed shipped as a fix in 3.3.0. TD-007 section 14 now records this rather than describing an open bug.
+
+### Added
+- **TD-007 section 16**, part of the screen smears and stays smeared. Includes the diagnostic rule that the corrupt region is the region nothing is repainting, which is what identifies a lost reference frame rather than a link fault.
+- **TD-007 section 17**, orientation silently reverts. `ignoreOrientationRequest` returned to `true` twice with no reboot in between, producing portrait geometry and a zero frame rate with no error anywhere.
+- **TD-003 section 3.1a**, turning off adaptive Wi-Fi on the phone. Samsung's switch-to-better-network behaviour moves the phone off the link mid-session. Also records that the hotspot subnet is not stable across sessions and must never be hardcoded.
+
+### Changed
+- **Corrected: the head unit server does not last until the phone reboots.** It dies with Android Auto's `:car` process, which is recycled independently. Measured with the phone up 16 days and the hosting process 1 day 4 hours old, which is when the head unit stopped connecting. Android Auto is already in the device idle whitelist at standby bucket 5, so this is neither doze nor app standby and no further exemption prevents it. TD-005 and TD-001 corrected; the previous "one action per phone reboot" claim was wrong.
+- Receiver version recorded as 3.3.0 in TD-002.
+
+### Measured
+- 1080p, HEVC hardware decoder: `rendered=150 (30fps), fed=150, dropped=0, skipped=0, concealed=0`, decode latency 20 ms, p95 40 ms.
+- The same link at a higher resolution setting ran at 52 to 53 fps, so **lowering the resolution did not raise the frame rate**.
 
 ## [1.3.0] - 2026-08-30
 
