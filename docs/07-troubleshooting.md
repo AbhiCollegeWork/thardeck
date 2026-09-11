@@ -490,6 +490,8 @@ Nothing in that set is car-specific, so the head unit connects whenever it can.
 
 **Do not gate on the hotspot or on the head unit joining a network.** Those fire during ordinary tethering, which is the whole problem.
 
+**This is now implemented, as option 3 done for you.** A small companion app watches the car's Bluetooth and presses the head unit server toggle: it starts the server when the car connects and stops it when the car leaves, so a later desk tether has nothing to connect to. It reads Android Auto's own menu label to know the state and acts only when it needs to change, and its accessibility service is scoped to Android Auto's package alone so it can see no other app. It runs in notification mode: unlocked it acts silently, locked it posts a one-tap start. See [`companion/`](../companion/README.md).
+
 
 ---
 

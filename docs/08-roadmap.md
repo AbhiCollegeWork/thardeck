@@ -93,6 +93,23 @@ flowchart TB
 
 ---
 
+## Done since this roadmap was written
+
+### Automatic head unit server, keyed to the car's Bluetooth
+Built and verified on the build hardware. A small companion app watches the
+car's Bluetooth and presses Android Auto's head unit server toggle: it starts
+the server when the car connects and stops it when the car leaves. That closes
+two problems at once, the manual per-restart tap and projection starting during
+a desk tether, because the server is only ever up while the car is connected.
+The tap is done by an accessibility service scoped to Android Auto's package
+alone, and the app reads Android Auto's own menu label to know the state. Source
+and full notes are in [`companion/`](../companion/README.md).
+
+**Still open on top of it:** it runs in notification mode, so behind a secure
+lock screen it posts a one-tap start rather than acting silently. Native mode
+(see [Troubleshooting section 15](07-troubleshooting.md#15-projection-starts-when-you-are-not-driving))
+remains the only route that would remove the developer-mode server entirely.
+
 ## Further out
 
 ### Trip logging

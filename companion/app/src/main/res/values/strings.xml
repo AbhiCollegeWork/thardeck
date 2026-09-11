@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Thar Deck</string>
+    <string name="acc_desc">Presses only Android Auto\'s head unit server toggle, when the car\'s Bluetooth connects or disconnects. Scoped to Android Auto alone; it can see no other app.</string>
+</resources>

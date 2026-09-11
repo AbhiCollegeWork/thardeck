@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flat launcher icon: a car with a projection beam, on dark slate. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <path android:pathData="M14,14 h80 a12,12 0 0 1 12,12 v56 a12,12 0 0 1 -12,12 h-80 a12,12 0 0 1 -12,-12 v-56 a12,12 0 0 1 12,-12 z"
+        android:fillColor="#111417"/>
+
+    <!-- car body -->
+    <path
+        android:pathData="M30,64 l4,-14 a6,6 0 0 1 5.5,-4 h29 a6,6 0 0 1 5.5,4 l4,14 v9 a3,3 0 0 1 -3,3 h-4 a3,3 0 0 1 -3,-3 v-2 h-30 v2 a3,3 0 0 1 -3,3 h-4 a3,3 0 0 1 -3,-3 z"
+        android:fillColor="#0F1A14" android:strokeColor="#5BE39B" android:strokeWidth="2.5"/>
+    <!-- windscreen -->
+    <path android:pathData="M40,50 h28 l3,10 h-34 z" android:fillColor="#2E8F63"/>
+    <!-- wheels -->
+    <path android:pathData="M38,74 m-3,0 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0" android:fillColor="#7CF7B4"/>
+    <path android:pathData="M70,74 m-3,0 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0" android:fillColor="#7CF7B4"/>
+
+    <!-- projection beam / broadcast arcs above the car -->
+    <path android:pathData="M54,40 m-3,0 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0" android:fillColor="#7CF7B4"/>
+    <path android:pathData="M46,36 a11,11 0 0 1 16,0"
+        android:strokeColor="#5BE39B" android:strokeWidth="3" android:strokeLineCap="round" android:fillColor="#00000000"/>
+    <path android:pathData="M41,31 a18,18 0 0 1 26,0"
+        android:strokeColor="#2E8F63" android:strokeWidth="3" android:strokeLineCap="round" android:fillColor="#00000000"/>
+</vector>

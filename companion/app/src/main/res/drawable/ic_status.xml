@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification small icon: single-colour white silhouette (system tints it).
+     A car under a broadcast arc. Anything but white+transparent shows as a box. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M5,17 l1.4,-5 a2,2 0 0 1 1.9,-1.4 h7.4 a2,2 0 0 1 1.9,1.4 l1.4,5 v3 a1,1 0 0 1 -1,1 h-1 a1,1 0 0 1 -1,-1 v-1 h-9 v1 a1,1 0 0 1 -1,1 h-1 a1,1 0 0 1 -1,-1 z M8.5,12 h7 l-0.8,-2.5 h-5.4 z"/>
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M12,7 m-1.3,0 a1.3,1.3 0 1 0 2.6,0 a1.3,1.3 0 1 0 -2.6,0"/>
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M8.4,5.2 a5,5 0 0 1 7.2,0 l-1.4,1.4 a3,3 0 0 0 -4.4,0 z"/>
+</vector>
