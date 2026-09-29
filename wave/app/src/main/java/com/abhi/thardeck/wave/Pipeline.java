@@ -79,7 +79,6 @@ final class Pipeline implements LifecycleOwner {
 
     interface Listener {
         void onCommand(Cmd c);
-        void onTilt(boolean active, double progress);
     }
 
     static final long HAND_INTERVAL_MS = 66;   // about 15 fps, never more
@@ -731,16 +730,48 @@ final class Pipeline implements LifecycleOwner {
         }
 
         List<Cmd> cmds;
-        boolean rot;
-        double prog;
         synchronized (engine) {
             cmds = engine.onFrame(f);
             Wave.engineLine = engine.debugLine();
-            rot = engine.tilting();
-            prog = engine.tiltProgress();
         }
+        synchronized (trail) { updateTrail(f, now, cmds); }
         for (Cmd c : cmds) listener.onCommand(c);
-        listener.onTilt(rot, prog);
+    }
+
+    // ---- calibrate view trail -------------------------------------------------------
+
+    static final long TRAIL_MS = 500;
+    /** {uptime ms, x, y} of the hand centre, result thread only. */
+    private final java.util.ArrayDeque<float[]> trail = new java.util.ArrayDeque<>();
+
+    /** Result thread, holding the trail lock. Keeps the last half second of
+     *  hand centres for the calibrate view, and marks each stroke where it
+     *  fired. */
+    private void updateTrail(HandFrame f, long now, List<Cmd> cmds) {
+        while (!trail.isEmpty() && now - trail.peekFirst()[0] > TRAIL_MS) trail.removeFirst();
+        if (!f.present) {
+            if (Wave.calibrating) Wave.calibTrail = flatten();
+            return;
+        }
+        int[] idx = {0, 5, 9, 13, 17};
+        float cx = 0, cy = 0;
+        for (int i : idx) { cx += f.x[i]; cy += f.y[i]; }
+        cx /= idx.length; cy /= idx.length;
+        trail.addLast(new float[]{now, cx, cy});
+        for (Cmd c : cmds) {
+            if (c == Cmd.VOL_UP || c == Cmd.VOL_DOWN) {
+                Wave.strokeMarkAt = now;
+                Wave.strokeMark = new float[]{cx, cy, c == Cmd.VOL_UP ? 1 : -1};
+            }
+        }
+        if (Wave.calibrating) Wave.calibTrail = flatten();
+    }
+
+    private float[] flatten() {
+        float[] xy = new float[trail.size() * 2];
+        int i = 0;
+        for (float[] p : trail) { xy[i++] = p[1]; xy[i++] = p[2]; }
+        return xy;
     }
 
     /** MediaPipe error thread. */
@@ -820,7 +851,8 @@ final class Pipeline implements LifecycleOwner {
         Wave.handPresent = false;
         Wave.cameraInfo = "closed";
         Wave.calibLandmarks = null;
-        listener.onTilt(false, 0);
+        synchronized (trail) { trail.clear(); }
+        Wave.calibTrail = null;
     }
 
     void destroy() {

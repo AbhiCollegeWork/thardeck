@@ -5,17 +5,15 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.IntToDoubleFunction;
 
 import org.junit.Before;
 import org.junit.Test;
 
 /**
  * Synthetic landmark sequences through the engine. Coordinates are in the
- * driver's frame: +x is the driver's right, +y is down. Frames arrive every
- * 66 ms, which is the 15 fps ceiling the app analyses at with a hand present.
- * A tilt is the whole hand turned in the image plane about its centre;
- * positive degrees are clockwise on a y-down screen.
+ * driver's frame: +x is the driver's right, +y is down, so a hand moving up
+ * the screen has falling y. Frames arrive every 66 ms, which is the 15 fps
+ * ceiling the app analyses at with a hand present.
  */
 public class GestureEngineTest {
 
@@ -59,33 +57,28 @@ public class GestureEngineTest {
         {0.17, 0.08}, {0.18, -0.06}, {0.18, 0.03}, {0.17, 0.10},
     };
 
-    /** Index and middle out, ring and pinky curled. */
+    /** Index and middle out, ring and pinky curled: not an open palm. */
     static double[][] twoFingerShape() {
         double[][] p = new double[21][];
         for (int i = 0; i < 21; i++) p[i] = (i >= 13 ? FIST[i] : OPEN[i]).clone();
         return p;
     }
 
-    static float[][] openHand(double cx, double cy, double s) { return hand(OPEN, cx, cy, s, 0); }
-    static float[][] openHand(double cx, double cy, double s, double deg) { return hand(OPEN, cx, cy, s, deg); }
-    static float[][] fist(double cx, double cy, double s) { return hand(FIST, cx, cy, s, 0); }
+    static float[][] openHand(double cx, double cy, double s) { return hand(OPEN, cx, cy, s); }
+    static float[][] fist(double cx, double cy, double s) { return hand(FIST, cx, cy, s); }
+    static float[][] twoFinger(double cx, double cy, double s) { return hand(twoFingerShape(), cx, cy, s); }
 
-    /**
-     * Places a shape scaled by s, tilted by deg (positive is clockwise on a
-     * y-down screen) about the hand centre, with the hand centre (mean of
-     * landmarks 0, 5, 9, 13, 17) exactly at (cx, cy).
-     */
-    static float[][] hand(double[][] p, double cx, double cy, double s, double deg) {
+    /** Places a shape scaled by s with the hand centre (mean of landmarks 0,
+     *  5, 9, 13, 17) exactly at (cx, cy). */
+    static float[][] hand(double[][] p, double cx, double cy, double s) {
         int[] c = {0, 5, 9, 13, 17};
         double mx = 0, my = 0;
         for (int i : c) { mx += p[i][0]; my += p[i][1]; }
         mx /= c.length; my /= c.length;
-        double a = Math.toRadians(deg), cos = Math.cos(a), sin = Math.sin(a);
         float[] x = new float[21], y = new float[21];
         for (int i = 0; i < 21; i++) {
-            double lx = p[i][0] - mx, ly = p[i][1] - my;
-            x[i] = (float) (cx + (lx * cos - ly * sin) * s);
-            y[i] = (float) (cy + (lx * sin + ly * cos) * s);
+            x[i] = (float) (cx + (p[i][0] - mx) * s);
+            y[i] = (float) (cy + (p[i][1] - my) * s);
         }
         return new float[][]{x, y};
     }
@@ -95,7 +88,7 @@ public class GestureEngineTest {
         t += DT;
     }
 
-    /** A frame with an exact bounding box height, for the hysteresis tests. */
+    /** A frame with an exact bounding box height. */
     void feedBox(float[][] hand, double boxH) {
         emitted.addAll(engine.onFrame(HandFrame.of(t, hand[0], hand[1],
                 0.3f, 0.2f, 0.7f, (float) (0.2 + boxH))));
@@ -113,140 +106,211 @@ public class GestureEngineTest {
         return n;
     }
 
-    /** Arm with the hand still, then tilt it degPerFrame for n frames, the
-     *  centre fixed. */
-    void tilt(double[][] shape, double degPerFrame, int n, double s) {
-        for (int i = 0; i < 3; i++) feed(hand(shape, 0.5, 0.5, s, 0));
-        for (int i = 1; i <= n; i++) feed(hand(shape, 0.5, 0.5, s, degPerFrame * i));
+    int volume() { return count(Cmd.VOL_UP) + count(Cmd.VOL_DOWN); }
+
+    /** Open hand at (0.5, y), n frames still. */
+    void still(double y, int n) {
+        for (int i = 0; i < n; i++) feed(openHand(0.5, y, 0.5));
     }
 
-    // ---- tilt ------------------------------------------------------------------------
-
-    @Test public void clockwiseTiltEmitsVolumeUpOnly() {
-        tilt(OPEN, 5, 12, 0.5);
-        System.out.println("clockwise tilt emitted " + emitted);
-        assertTrue("expected VOL_UP steps, got " + emitted, count(Cmd.VOL_UP) >= 2);
-        assertEquals("only VOL_UP expected, got " + emitted, count(Cmd.VOL_UP), emitted.size());
+    /** Open hand moving vertically from y0 by total over n frames (negative
+     *  total is up). Returns the final y. */
+    double stroke(double y0, double total, int n) {
+        for (int i = 1; i <= n; i++) feed(openHand(0.5, y0 + total * i / n, 0.5));
+        return y0 + total;
     }
 
-    @Test public void anticlockwiseTiltEmitsVolumeDownOnly() {
-        tilt(OPEN, -5, 12, 0.5);
-        System.out.println("anticlockwise tilt emitted " + emitted);
-        assertTrue("expected VOL_DOWN steps, got " + emitted, count(Cmd.VOL_DOWN) >= 2);
-        assertEquals("only VOL_DOWN expected, got " + emitted, count(Cmd.VOL_DOWN), emitted.size());
+    // ---- strokes -------------------------------------------------------------------
+
+    @Test public void upwardStrokeEmitsOneVolumeUp() {
+        still(0.6, 3);
+        stroke(0.6, -0.15, 4);
+        still(0.45, 6);
+        System.out.println("up stroke emitted " + emitted);
+        assertEquals("exactly one VOL_UP, got " + emitted, 1, count(Cmd.VOL_UP));
+        assertEquals("nothing else, got " + emitted, 1, emitted.size());
     }
 
-    @Test public void twoFingerTiltWorksBothWays() {
-        tilt(twoFingerShape(), 5, 12, 0.5);
-        assertTrue("two-finger clockwise, got " + emitted, count(Cmd.VOL_UP) >= 2);
-        assertEquals(count(Cmd.VOL_UP), emitted.size());
+    @Test public void downwardStrokeEmitsOneVolumeDown() {
+        still(0.4, 3);
+        stroke(0.4, 0.15, 4);
+        still(0.55, 6);
+        System.out.println("down stroke emitted " + emitted);
+        assertEquals("exactly one VOL_DOWN, got " + emitted, 1, count(Cmd.VOL_DOWN));
+        assertEquals("nothing else, got " + emitted, 1, emitted.size());
+    }
+
+    /** A pump: up, a 350 ms pause at the top, then down. */
+    @Test public void pumpUpThenDownEmitsUpThenDown() {
+        still(0.6, 3);
+        double y = stroke(0.6, -0.15, 4);
+        still(y, 5); // about 350 ms at the top
+        stroke(y, 0.15, 4);
+        System.out.println("pump emitted " + emitted);
+        assertEquals("VOL_UP then VOL_DOWN, got " + emitted, 2, emitted.size());
+        assertEquals(Cmd.VOL_UP, emitted.get(0));
+        assertEquals(Cmd.VOL_DOWN, emitted.get(1));
+    }
+
+    /** Several steps up: flick up, drop the hand out of view, flick up again.
+     *  The return out of view must not count as a down stroke. */
+    @Test public void twoUpStrokesWithTheHandLostBetweenEmitTwoUps() {
+        still(0.6, 3);
+        stroke(0.6, -0.15, 4);
+        for (int i = 0; i < 3; i++) feedEmpty(); // hand drops out of view
+        still(0.6, 1);                            // back in at the bottom
+        stroke(0.6, -0.15, 4);
+        System.out.println("two ups emitted " + emitted);
+        assertEquals("two VOL_UP, got " + emitted, 2, count(Cmd.VOL_UP));
+        assertEquals("nothing else, got " + emitted, 2, emitted.size());
+    }
+
+    /** 0.05 of drift over 500 ms is not a stroke. A two-finger hand, so the
+     *  palm hold is out of the picture. */
+    @Test public void slowDriftEmitsNothing() {
+        for (int i = 0; i < 3; i++) feed(twoFinger(0.5, 0.5, 0.5));
+        for (int i = 1; i <= 8; i++) feed(twoFinger(0.5, 0.5 - 0.05 * i / 8, 0.5));
+        assertEquals("slow drift must emit nothing, got " + emitted, 0, emitted.size());
+    }
+
+    /** A diagonal move, more sideways than up or down, is a swipe, not a stroke. */
+    @Test public void diagonalMoveIsASwipeNotAStroke() {
+        still(0.5, 3);
+        for (int i = 1; i <= 4; i++) feed(openHand(0.5 + 0.05 * i, 0.5 + 0.025 * i, 0.5));
+        System.out.println("diagonal emitted " + emitted);
+        assertEquals("one NEXT, got " + emitted, 1, count(Cmd.NEXT));
+        assertEquals("no stroke, got " + emitted, 0, volume());
+    }
+
+    @Test public void strokeInvertFlipsDirection() {
+        tuning.strokeInvert = true;
+        still(0.6, 3);
+        stroke(0.6, -0.15, 4);
+        assertEquals("inverted up is VOL_DOWN, got " + emitted, 1, count(Cmd.VOL_DOWN));
+        assertEquals(1, emitted.size());
+    }
+
+    // ---- size floor while tracking ----------------------------------------------------
+
+    /** Armed at 0.22, the hand then reads 0.10 (under the hold height, over
+     *  the stroke floor): strokes still track. */
+    @Test public void armedHandKeepsTrackingDownToTheStrokeFloor() {
+        for (int i = 0; i < 3; i++) feedBox(openHand(0.5, 0.6, 0.5), 0.22);
+        for (int i = 1; i <= 4; i++) feedBox(openHand(0.5, 0.6 - 0.0375 * i, 0.5), 0.10);
+        assertEquals("armed hand at 0.10 strokes, got " + emitted, 1, count(Cmd.VOL_UP));
+    }
+
+    /** The same motion at 0.10 from the start never arms, so nothing fires. */
+    @Test public void neverArmedHandAtStrokeFloorEmitsNothing() {
+        for (int i = 0; i < 3; i++) feedBox(openHand(0.5, 0.6, 0.5), 0.10);
+        for (int i = 1; i <= 4; i++) feedBox(openHand(0.5, 0.6 - 0.0375 * i, 0.5), 0.10);
+        assertEquals("never armed at 0.10 emits nothing, got " + emitted, 0, emitted.size());
+    }
+
+    /** Control: armed, then under the floor (0.06): no stroke, and the hand
+     *  drops to IDLE once past the grace. */
+    @Test public void armedHandUnderTheFloorDoesNotStroke() {
+        for (int i = 0; i < 3; i++) feedBox(openHand(0.5, 0.6, 0.5), 0.22);
+        for (int i = 1; i <= 8; i++) feedBox(openHand(0.5, 0.6 - 0.02 * i, 0.5), 0.06);
+        assertEquals("under the floor nothing fires, got " + emitted, 0, emitted.size());
+        assertEquals(GestureEngine.State.IDLE, engine.state());
+    }
+
+    /** Between the hold height and the arming height (0.16) an armed hand
+     *  still swipes; under the hold height (0.10) it strokes but does not. */
+    @Test public void swipesWantTheHoldHeight() {
+        for (int i = 0; i < 3; i++) feedBox(openHand(0.25, 0.5, 0.5), 0.22);
+        for (int i = 1; i <= 4; i++) feedBox(openHand(0.25 + 0.05 * i, 0.5, 0.5), 0.16);
+        assertEquals("armed at 0.16 swipes, got " + emitted, 1, count(Cmd.NEXT));
         for (int i = 0; i < 10; i++) feedEmpty();
         emitted.clear();
-        tilt(twoFingerShape(), -5, 12, 0.5);
-        assertTrue("two-finger anticlockwise, got " + emitted, count(Cmd.VOL_DOWN) >= 2);
-        assertEquals(count(Cmd.VOL_DOWN), emitted.size());
-    }
-
-    /** No finger-count gate for tilt. */
-    @Test public void tiltWithNoFingerExtendedStillCounts() {
-        tilt(FIST, 5, 12, 0.6);
-        assertTrue("a closed hand tilts the volume too, got " + emitted, count(Cmd.VOL_UP) >= 2);
-        assertEquals(count(Cmd.VOL_UP), emitted.size());
-    }
-
-    @Test public void tiltInvertFlipsDirection() {
-        tuning.tiltInvert = true;
-        tilt(OPEN, 5, 12, 0.5);
-        assertTrue("inverted clockwise is VOL_DOWN, got " + emitted, count(Cmd.VOL_DOWN) >= 2);
-        assertEquals(count(Cmd.VOL_DOWN), emitted.size());
-    }
-
-    /** Tilting back unwinds the count, like a dial: out and back again by the
-     *  same amount, slowly enough to stay under a step, emits nothing. */
-    @Test public void tiltOutAndBackUnderAStepEmitsNothing() {
-        for (int i = 0; i < 3; i++) feed(openHand(0.5, 0.5, 0.5, 0));
-        for (int i = 1; i <= 4; i++) feed(openHand(0.5, 0.5, 0.5, 5 * i));      // +20
-        for (int i = 3; i >= 0; i--) feed(openHand(0.5, 0.5, 0.5, 5 * i));      // back to 0
-        assertEquals("a wobble under a step is not volume, got " + emitted, 0,
-                count(Cmd.VOL_UP) + count(Cmd.VOL_DOWN));
-    }
-
-    /** A tilting open palm turns the volume and never plays or pauses, fast
-     *  or slow. */
-    @Test public void tiltingPalmNeverPlays() {
-        tilt(OPEN, 5, 30, 0.5);
-        for (int i = 0; i < 10; i++) feedEmpty();
-        tilt(OPEN, 2, 40, 0.5);
-        System.out.println("tilting palm emitted " + emitted);
-        assertEquals("tilting palm must never PLAY_PAUSE, got " + emitted, 0, count(Cmd.PLAY_PAUSE));
-        assertTrue("tilting palm steps the volume, got " + emitted, count(Cmd.VOL_UP) >= 6);
+        for (int i = 0; i < 3; i++) feedBox(openHand(0.25, 0.5, 0.5), 0.22);
+        for (int i = 1; i <= 4; i++) feedBox(openHand(0.25 + 0.05 * i, 0.5, 0.5), 0.10);
+        assertEquals("armed at 0.10 does not swipe, got " + emitted, 0, emitted.size());
     }
 
     // ---- open palm hold ----------------------------------------------------------------
 
     @Test public void stillPalmPlaysOnceThenNeedsCloseAndReopen() {
-        for (int i = 0; i < 11; i++) feed(openHand(0.5, 0.5, 0.5)); // 0..660 ms, still
+        still(0.5, 11); // 0..660 ms, still
         assertEquals("a still palm for 700 ms fires once, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
-        for (int i = 0; i < 30; i++) feed(openHand(0.5, 0.5, 0.5)); // keeps holding, 2 s
+        still(0.5, 30); // keeps holding, 2 s
         assertEquals("holding on must not fire again, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
-        for (int i = 0; i < 2; i++) feed(fist(0.5, 0.5, 0.5));      // closes for 132 ms only
-        for (int i = 0; i < 15; i++) feed(openHand(0.5, 0.5, 0.5));
+        for (int i = 0; i < 2; i++) feed(fist(0.5, 0.5, 0.5)); // closes for 132 ms only
+        still(0.5, 15);
         assertEquals("a blink shorter than 300 ms does not re-arm, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
-        for (int i = 0; i < 6; i++) feed(fist(0.5, 0.5, 0.5));      // closes for 330 ms
-        for (int i = 0; i < 11; i++) feed(openHand(0.5, 0.5, 0.5)); // reopens, still 700 ms
+        for (int i = 0; i < 6; i++) feed(fist(0.5, 0.5, 0.5)); // closes for 330 ms
+        still(0.5, 11);                                         // reopens, still 700 ms
         assertEquals("close then reopen fires again, got " + emitted, 2, count(Cmd.PLAY_PAUSE));
         assertEquals("nothing but PLAY_PAUSE, got " + emitted, 2, emitted.size());
     }
 
+    /** A palm pumping up and down is strokes, never a hold. */
+    @Test public void movingPalmGivesStrokesOnly() {
+        still(0.6, 3);
+        double y = 0.6;
+        for (int k = 0; k < 3; k++) {
+            y = stroke(y, -0.15, 4);
+            still(y, 5);
+            y = stroke(y, 0.15, 4);
+            still(y, 5);
+        }
+        System.out.println("pumping palm emitted " + emitted);
+        assertEquals("never PLAY_PAUSE, got " + emitted, 0, count(Cmd.PLAY_PAUSE));
+        assertEquals("three up strokes, got " + emitted, 3, count(Cmd.VOL_UP));
+        assertEquals("three down strokes, got " + emitted, 3, count(Cmd.VOL_DOWN));
+    }
+
     /** A palm that drifts more than allowed keeps restarting the hold. */
     @Test public void palmThatWandersNeverPlays() {
-        for (int i = 0; i < 40; i++) feed(openHand(0.5 + 0.01 * i, 0.5, 0.5));
+        for (int i = 0; i < 40; i++) feed(openHand(0.3 + 0.01 * i, 0.5, 0.5));
         assertEquals("a drifting palm must not fire, got " + emitted, 0, count(Cmd.PLAY_PAUSE));
     }
 
     // ---- palm latch survives dropouts ---------------------------------------------------
 
-    /** Size dropout in the middle of the hold: fires once, not twice. */
+    /** Size dropout (box 0.06, under the floor) in the middle of the hold:
+     *  fires once, not twice. */
     @Test public void palmSizeDropoutMidHoldDoesNotDoubleFire() {
-        for (int i = 0; i < 5; i++) feed(openHand(0.5, 0.5, 0.5));
-        for (int i = 0; i < 3; i++) feed(openHand(0.5, 0.5, 0.10)); // box 0.10, under the hold
-        for (int i = 0; i < 30; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 5);
+        for (int i = 0; i < 3; i++) feed(openHand(0.5, 0.5, 0.06));
+        still(0.5, 30);
         assertEquals("one hold, one PLAY_PAUSE, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
     }
 
     /** Same, with the dropout long enough (660 ms) to pass the grace and reset. */
     @Test public void palmLongSizeDropoutMidHoldDoesNotDoubleFire() {
-        for (int i = 0; i < 5; i++) feed(openHand(0.5, 0.5, 0.5));
-        for (int i = 0; i < 10; i++) feed(openHand(0.5, 0.5, 0.10));
-        for (int i = 0; i < 30; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 5);
+        for (int i = 0; i < 10; i++) feed(openHand(0.5, 0.5, 0.06));
+        still(0.5, 30);
         assertEquals("one hold, one PLAY_PAUSE, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
     }
 
     /** Dropout after the palm fired, still open throughout: the latch holds. */
     @Test public void palmLatchSurvivesSizeDropoutAfterFiring() {
-        for (int i = 0; i < 11; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 11);
         assertEquals(1, count(Cmd.PLAY_PAUSE));
-        for (int i = 0; i < 10; i++) feed(openHand(0.5, 0.5, 0.10));
+        for (int i = 0; i < 10; i++) feed(openHand(0.5, 0.5, 0.06));
         assertEquals(GestureEngine.State.IDLE, engine.state());
-        for (int i = 0; i < 20; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 20);
         assertEquals("still-open palm after a dropout must not fire, got " + emitted,
                 1, count(Cmd.PLAY_PAUSE));
     }
 
     /** No hand at all for longer than palmUnlatchAbsentMs re-arms the palm. */
     @Test public void palmLatchClearsAfterHandGone() {
-        for (int i = 0; i < 11; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 11);
         for (int i = 0; i < 25; i++) feedEmpty(); // 1650 ms
-        for (int i = 0; i < 11; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 11);
         assertEquals("palm re-arms after the hand was gone, got " + emitted, 2, count(Cmd.PLAY_PAUSE));
     }
 
     /** A shorter absence (990 ms) resets the engine but keeps the latch. */
     @Test public void palmLatchKeptAfterShortAbsence() {
-        for (int i = 0; i < 11; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 11);
         for (int i = 0; i < 15; i++) feedEmpty();
         assertEquals(GestureEngine.State.IDLE, engine.state());
-        for (int i = 0; i < 20; i++) feed(openHand(0.5, 0.5, 0.5));
+        still(0.5, 20);
         assertEquals("short absence must not re-arm the palm, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
     }
 
@@ -258,7 +322,7 @@ public class GestureEngineTest {
         for (int i = 0; i < 4; i++) feedEmpty(); // hand leaves, as it does after a swipe
         System.out.println("sweep emitted " + emitted);
         assertEquals("expected exactly one NEXT, got " + emitted, 1, count(Cmd.NEXT));
-        assertEquals("no tilt steps or anything else, got " + emitted, 1, emitted.size());
+        assertEquals("no stroke or anything else, got " + emitted, 1, emitted.size());
     }
 
     /** The owner's measured swipes travel 0.10 to 0.20 of the frame: 0.16 in
@@ -267,20 +331,12 @@ public class GestureEngineTest {
         for (int i = 0; i < 3; i++) feed(openHand(0.40, 0.5, 0.5));
         for (int i = 1; i <= 4; i++) feed(openHand(0.40 + 0.04 * i, 0.5 + 0.02 * i, 0.5));
         assertEquals("0.16 sideways with 0.08 vertical is a swipe, got " + emitted, 1, count(Cmd.NEXT));
+        assertEquals("and not a stroke, got " + emitted, 0, volume());
         for (int i = 0; i < 10; i++) feedEmpty();
         emitted.clear();
         for (int i = 0; i < 3; i++) feed(openHand(0.60, 0.5, 0.5));
         for (int i = 1; i <= 4; i++) feed(openHand(0.60 - 0.025 * i, 0.5, 0.5));
         assertEquals("0.10 sideways is not a swipe, got " + emitted, 0, emitted.size());
-    }
-
-    /** A swipe whose hand also tilts as the arm sweeps is still a swipe: the
-     *  hand is travelling, so its tilt is not counted. */
-    @Test public void sweepWithTiltingHandIsNotATilt() {
-        for (int i = 0; i < 3; i++) feed(openHand(0.25, 0.5, 0.5, 0));
-        for (int i = 1; i <= 6; i++) feed(openHand(0.25 + 0.09 * i, 0.5, 0.5, 8 * i));
-        assertEquals("one NEXT, got " + emitted, 1, count(Cmd.NEXT));
-        assertEquals("no volume from a swipe, got " + emitted, 0, count(Cmd.VOL_UP) + count(Cmd.VOL_DOWN));
     }
 
     @Test public void fastLeftwardSweepEmitsPrev() {
@@ -290,14 +346,14 @@ public class GestureEngineTest {
         assertEquals(1, emitted.size());
     }
 
-    // ---- size gate ---------------------------------------------------------------------
+    // ---- arming ------------------------------------------------------------------------
 
-    /** Hand far from the camera: tilt, sweep and still palm, at a size whose
-     *  bounding box (at most 0.15, less when tilted) stays under the 0.18
-     *  arming height. */
+    /** Hand far from the camera: stroke, sweep and still palm, at a size whose
+     *  bounding box (0.15) stays under the 0.18 arming height. */
     void smallHandRoutine() {
         double s = 0.15;
-        tilt(OPEN, 5, 12, s);
+        for (int i = 0; i < 3; i++) feed(openHand(0.5, 0.6, s));
+        for (int i = 1; i <= 4; i++) feed(openHand(0.5, 0.6 - 0.0375 * i, s));
         for (int i = 0; i < 10; i++) feedEmpty();
         for (int i = 0; i < 3; i++) feed(openHand(0.25, 0.5, s));
         for (int i = 1; i <= 6; i++) feed(openHand(0.25 + 0.09 * i, 0.5, s));
@@ -318,7 +374,7 @@ public class GestureEngineTest {
         tuning.minBoxHeightHold = 0.03;
         smallHandRoutine();
         System.out.println("small hand, gate lowered, emitted " + emitted);
-        assertTrue("tilt should fire with the gate lowered, got " + emitted, count(Cmd.VOL_UP) >= 1);
+        assertEquals("stroke should fire with the gate lowered, got " + emitted, 1, count(Cmd.VOL_UP));
         assertEquals("sweep should fire with the gate lowered, got " + emitted, 1, count(Cmd.NEXT));
         assertEquals("palm should fire with the gate lowered, got " + emitted, 1, count(Cmd.PLAY_PAUSE));
     }
@@ -331,66 +387,5 @@ public class GestureEngineTest {
         for (int i = 0; i < 3; i++) feedEmpty(); // now past it
         assertEquals(GestureEngine.State.IDLE, engine.state());
         assertEquals(0, emitted.size());
-    }
-
-    // ---- size hysteresis during a tilt -----------------------------------------------------
-
-    /**
-     * Arms with the hand still (box 0.22), then tilts it 5 degrees a frame for
-     * n frames with the box height given per frame. Records the state after
-     * each tilting frame and how many commands that frame emitted.
-     */
-    void tiltWithBox(int n, IntToDoubleFunction boxAt, GestureEngine.State[] st, int[] em) {
-        for (int i = 0; i < 3; i++) feedBox(openHand(0.5, 0.5, 0.5, 0), 0.22);
-        for (int i = 0; i < n; i++) {
-            int before = emitted.size();
-            feedBox(openHand(0.5, 0.5, 0.5, 5 * (i + 1)), boxAt.applyAsDouble(i));
-            st[i] = engine.state();
-            em[i] = emitted.size() - before;
-        }
-    }
-
-    /** Box dips from 0.22 to 0.16 for three frames mid-tilt: under the arming
-     *  height but over the hold height, so the tilt carries on. */
-    @Test public void tiltSurvivesShortSizeDip() {
-        final int from = 8, to = 10, n = 24;
-        GestureEngine.State[] st = new GestureEngine.State[n];
-        int[] em = new int[n];
-        tiltWithBox(n, i -> (i >= from && i <= to) ? 0.16 : 0.22, st, em);
-        int before = 0, after = 0;
-        for (int i = 0; i < n; i++) {
-            if (i >= from && i <= to) {
-                assertEquals("frame " + i + " in the dip", GestureEngine.State.TILTING, st[i]);
-            }
-            if (i < from) before += em[i]; else after += em[i];
-        }
-        assertTrue("steps before the dip, got " + emitted, before >= 1);
-        assertTrue("steps keep coming through and after the dip, got " + emitted, after >= 2);
-        assertEquals("only VOL_UP, got " + emitted, count(Cmd.VOL_UP), emitted.size());
-    }
-
-    /** A dip longer than the dropout grace (8 frames, 528 ms) isolates the
-     *  hysteresis: tilting stays active and steps come inside the dip. */
-    @Test public void tiltSurvivesLongSizeDipAboveHold() {
-        final int from = 8, to = 15, n = 24;
-        GestureEngine.State[] st = new GestureEngine.State[n];
-        int[] em = new int[n];
-        tiltWithBox(n, i -> (i >= from && i <= to) ? 0.16 : 0.22, st, em);
-        int inDip = 0;
-        for (int i = from; i <= to; i++) {
-            assertEquals("frame " + i + " in the dip", GestureEngine.State.TILTING, st[i]);
-            inDip += em[i];
-        }
-        assertTrue("steps emitted during the dip, got " + emitted, inDip >= 1);
-    }
-
-    /** Control: the same long dip but below the hold height drops the hand. */
-    @Test public void longDipBelowHoldDropsTheHand() {
-        final int from = 8, to = 15, n = 24;
-        GestureEngine.State[] st = new GestureEngine.State[n];
-        int[] em = new int[n];
-        tiltWithBox(n, i -> (i >= from && i <= to) ? 0.10 : 0.22, st, em);
-        assertEquals("a dip under the hold height past the grace drops to IDLE",
-                GestureEngine.State.IDLE, st[to]);
     }
 }

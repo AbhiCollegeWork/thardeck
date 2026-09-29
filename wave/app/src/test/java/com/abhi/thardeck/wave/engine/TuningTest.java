@@ -41,38 +41,38 @@ public class TuningTest {
         assertEquals(0.13, t.minBoxHeightHold, 1e-9);
         assertEquals(100, t.armMs, 1e-9);
         assertEquals(400, t.lostGraceMs, 1e-9);
-        assertFalse(t.tiltInvert);
-        assertEquals(500, t.tiltWindowMs, 1e-9);
-        assertEquals(0.12, t.tiltMaxTravel, 1e-9);
-        assertEquals(1, t.tiltMinDeltaDeg, 1e-9);
-        assertEquals(20, t.tiltMaxDeltaDeg, 1e-9);
-        assertEquals(25, t.tiltStepDeg, 1e-9);
-        assertEquals(8, t.tiltMaxStepsPerSec, 1e-9);
-        assertEquals(400, t.tiltReleaseMs, 1e-9);
+        assertFalse(t.strokeInvert);
+        assertEquals(0.08, t.strokeMinBox, 1e-9);
+        assertEquals(500, t.strokeWindowMs, 1e-9);
+        assertEquals(0.08, t.strokeMinTravel, 1e-9);
+        assertEquals(1.5, t.strokeVerticalRatio, 1e-9);
+        assertEquals(300, t.strokeRefractoryMs, 1e-9);
         assertEquals(0.14, t.swipeMinDx, 1e-9);
         assertEquals(450, t.swipeWindowMs, 1e-9);
         assertEquals(0.6, t.swipeMaxDyRatio, 1e-9);
+        assertEquals(600, t.swipeCooldownMs, 1e-9);
         assertEquals(600, t.palmHoldMs, 1e-9);
         assertEquals(0.04, t.palmMaxTravel, 1e-9);
-        assertEquals(8, t.palmMaxTiltDeg, 1e-9);
         assertEquals(300, t.palmReleaseMs, 1e-9);
         assertEquals(1500, t.palmUnlatchAbsentMs, 1e-9);
         assertEquals(3.0, t.motionMinDiff, 1e-9);
         assertEquals(50, t.darkLuma, 1e-9);
     }
 
-    @Test public void resetRestoresTiltDirection() {
+    @Test public void resetRestoresStrokeDirection() {
         Tuning t = new Tuning();
-        t.tiltInvert = true;
+        t.strokeInvert = true;
         t.reset();
-        assertFalse(t.tiltInvert);
+        assertFalse(t.strokeInvert);
     }
 
-    /** The circle, fist and roll recognisers are gone, keys and all. */
+    /** The circle, fist, roll and tilt recognisers are gone, keys and all. */
     @Test public void retiredKeysAreGone() {
         for (String k : new String[]{"rotWindowMs", "rotStepDeg", "rotMinAspect",
                 "fistHoldMs", "fistMaxTravel", "fistUnlatchAbsentMs",
-                "rollWindowMs", "rollStepDeg", "rollMaxTravel", "palmMaxRollDeg"}) {
+                "rollWindowMs", "rollStepDeg", "rollMaxTravel", "palmMaxRollDeg",
+                "tiltWindowMs", "tiltStepDeg", "tiltMaxTravel", "tiltMinDeltaDeg",
+                "tiltMaxDeltaDeg", "tiltMaxStepsPerSec", "tiltReleaseMs", "palmMaxTiltDeg"}) {
             assertFalse(k, Tuning.isKey(k));
         }
     }

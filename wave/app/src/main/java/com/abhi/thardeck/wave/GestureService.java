@@ -53,9 +53,6 @@ public class GestureService extends Service {
         sender.start();
         pipeline = new Pipeline(this, new Pipeline.Listener() {
             @Override public void onCommand(Cmd c) { command(c, "gesture"); }
-            @Override public void onTilt(boolean active, double progress) {
-                hud.tilt(active, progress);
-            }
         });
         Wave.service = this;
         registerNetwork();

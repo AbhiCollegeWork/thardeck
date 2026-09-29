@@ -26,25 +26,21 @@ public final class Tuning {
     /** A tracking dropout shorter than this does not reset the recognisers. */
     public volatile double lostGraceMs = 400;
 
-    // ---- hand tilt (volume) ---------------------------------------------------
-    /** Flips which way of tilting is volume up. The sign is confirmed in the
-     *  car; a switch, not a slider. */
-    public volatile boolean tiltInvert = false;
-    /** Ring buffer length for the tilt angle and hand centre. */
-    public volatile double tiltWindowMs = 500;
-    /** The hand centre must travel less than this over the buffer, so a
-     *  swipe is never read as a tilt. */
-    public volatile double tiltMaxTravel = 0.12;
-    /** Per-frame tilt change below this is jitter. */
-    public volatile double tiltMinDeltaDeg = 1;
-    /** Per-frame tilt change above this is a tracking jump, ignored. */
-    public volatile double tiltMaxDeltaDeg = 20;
-    /** Accumulated tilt per volume step. */
-    public volatile double tiltStepDeg = 25;
-    /** Rate cap on volume steps. */
-    public volatile double tiltMaxStepsPerSec = 8;
-    /** Tilting releases after this long without movement. */
-    public volatile double tiltReleaseMs = 400;
+    // ---- vertical stroke (volume) ------------------------------------------
+    /** Flips which way is volume up. A switch, not a slider, in case up and
+     *  down need swapping in the car. */
+    public volatile boolean strokeInvert = false;
+    /** Once armed, strokes keep tracking the hand down to this box height:
+     *  the hand shrinks and half leaves the frame at the bottom of a stroke. */
+    public volatile double strokeMinBox = 0.08;
+    /** Buffer of hand centres a stroke is measured over. */
+    public volatile double strokeWindowMs = 500;
+    /** Vertical travel of the hand centre that makes a stroke. */
+    public volatile double strokeMinTravel = 0.08;
+    /** Vertical travel must exceed this multiple of the horizontal. */
+    public volatile double strokeVerticalRatio = 1.5;
+    /** Quiet period after a stroke before the next can fire. */
+    public volatile double strokeRefractoryMs = 300;
 
     // ---- swipe (next, previous) ---------------------------------------------
     /** Horizontal travel of the hand centre needed for a swipe. */
@@ -59,10 +55,9 @@ public final class Tuning {
     // ---- open palm hold (play, pause) -----------------------------------------
     /** How long an open palm must be held still. */
     public volatile double palmHoldMs = 600;
-    /** Hand centre travel allowed during the hold. */
+    /** Hand centre travel allowed during the hold. A palm that moves more is
+     *  a stroke or a swipe, never a hold. */
     public volatile double palmMaxTravel = 0.04;
-    /** Tilt allowed during the hold. */
-    public volatile double palmMaxTiltDeg = 8;
     /** After a palm fires, it re-arms once the hand has not been an open palm
      *  for this long... */
     public volatile double palmReleaseMs = 300;
@@ -95,20 +90,17 @@ public final class Tuning {
         new Param("minBoxHeightHold", "Arm: hold while above height", 0.05, 0.60, 0.01),
         new Param("armMs", "Arm: present for ms", 0, 600, 10),
         new Param("lostGraceMs", "Arm: dropout grace ms", 0, 1000, 10),
-        new Param("tiltWindowMs", "Tilt: window ms", 200, 1500, 50),
-        new Param("tiltMaxTravel", "Tilt: max hand travel", 0.02, 0.40, 0.01),
-        new Param("tiltMinDeltaDeg", "Tilt: jitter floor deg", 0, 10, 0.5),
-        new Param("tiltMaxDeltaDeg", "Tilt: jump ceiling deg", 5, 90, 1),
-        new Param("tiltStepDeg", "Tilt: degrees per step", 10, 90, 1),
-        new Param("tiltMaxStepsPerSec", "Tilt: max steps per s", 2, 15, 1),
-        new Param("tiltReleaseMs", "Tilt: release ms", 100, 1500, 50),
+        new Param("strokeMinBox", "Stroke: track down to height", 0.03, 0.30, 0.01),
+        new Param("strokeWindowMs", "Stroke: window ms", 200, 1500, 50),
+        new Param("strokeMinTravel", "Stroke: min vertical travel", 0.02, 0.40, 0.01),
+        new Param("strokeVerticalRatio", "Stroke: vertical over horizontal", 1.0, 4.0, 0.1),
+        new Param("strokeRefractoryMs", "Stroke: quiet after a stroke ms", 0, 1500, 50),
         new Param("swipeMinDx", "Swipe: min travel", 0.10, 0.70, 0.01),
         new Param("swipeWindowMs", "Swipe: window ms", 150, 1000, 10),
         new Param("swipeMaxDyRatio", "Swipe: max vertical ratio", 0.1, 1.0, 0.05),
         new Param("swipeCooldownMs", "Swipe: cooldown ms", 0, 2000, 50),
         new Param("palmHoldMs", "Palm: hold ms", 200, 2000, 10),
         new Param("palmMaxTravel", "Palm: max travel", 0.01, 0.20, 0.005),
-        new Param("palmMaxTiltDeg", "Palm: max tilt deg", 1, 30, 0.5),
         new Param("palmReleaseMs", "Palm: re-arm after not palm ms", 50, 2000, 50),
         new Param("palmUnlatchAbsentMs", "Palm: re-arm after hand gone ms", 300, 5000, 100),
         new Param("motionMinDiff", "Gate: motion to wake", 0.5, 30, 0.5),
@@ -121,20 +113,17 @@ public final class Tuning {
             case "minBoxHeightHold": return minBoxHeightHold;
             case "armMs": return armMs;
             case "lostGraceMs": return lostGraceMs;
-            case "tiltWindowMs": return tiltWindowMs;
-            case "tiltMaxTravel": return tiltMaxTravel;
-            case "tiltMinDeltaDeg": return tiltMinDeltaDeg;
-            case "tiltMaxDeltaDeg": return tiltMaxDeltaDeg;
-            case "tiltStepDeg": return tiltStepDeg;
-            case "tiltMaxStepsPerSec": return tiltMaxStepsPerSec;
-            case "tiltReleaseMs": return tiltReleaseMs;
+            case "strokeMinBox": return strokeMinBox;
+            case "strokeWindowMs": return strokeWindowMs;
+            case "strokeMinTravel": return strokeMinTravel;
+            case "strokeVerticalRatio": return strokeVerticalRatio;
+            case "strokeRefractoryMs": return strokeRefractoryMs;
             case "swipeMinDx": return swipeMinDx;
             case "swipeWindowMs": return swipeWindowMs;
             case "swipeMaxDyRatio": return swipeMaxDyRatio;
             case "swipeCooldownMs": return swipeCooldownMs;
             case "palmHoldMs": return palmHoldMs;
             case "palmMaxTravel": return palmMaxTravel;
-            case "palmMaxTiltDeg": return palmMaxTiltDeg;
             case "palmReleaseMs": return palmReleaseMs;
             case "palmUnlatchAbsentMs": return palmUnlatchAbsentMs;
             case "motionMinDiff": return motionMinDiff;
@@ -149,20 +138,17 @@ public final class Tuning {
             case "minBoxHeightHold": minBoxHeightHold = v; break;
             case "armMs": armMs = v; break;
             case "lostGraceMs": lostGraceMs = v; break;
-            case "tiltWindowMs": tiltWindowMs = v; break;
-            case "tiltMaxTravel": tiltMaxTravel = v; break;
-            case "tiltMinDeltaDeg": tiltMinDeltaDeg = v; break;
-            case "tiltMaxDeltaDeg": tiltMaxDeltaDeg = v; break;
-            case "tiltStepDeg": tiltStepDeg = v; break;
-            case "tiltMaxStepsPerSec": tiltMaxStepsPerSec = v; break;
-            case "tiltReleaseMs": tiltReleaseMs = v; break;
+            case "strokeMinBox": strokeMinBox = v; break;
+            case "strokeWindowMs": strokeWindowMs = v; break;
+            case "strokeMinTravel": strokeMinTravel = v; break;
+            case "strokeVerticalRatio": strokeVerticalRatio = v; break;
+            case "strokeRefractoryMs": strokeRefractoryMs = v; break;
             case "swipeMinDx": swipeMinDx = v; break;
             case "swipeWindowMs": swipeWindowMs = v; break;
             case "swipeMaxDyRatio": swipeMaxDyRatio = v; break;
             case "swipeCooldownMs": swipeCooldownMs = v; break;
             case "palmHoldMs": palmHoldMs = v; break;
             case "palmMaxTravel": palmMaxTravel = v; break;
-            case "palmMaxTiltDeg": palmMaxTiltDeg = v; break;
             case "palmReleaseMs": palmReleaseMs = v; break;
             case "palmUnlatchAbsentMs": palmUnlatchAbsentMs = v; break;
             case "motionMinDiff": motionMinDiff = v; break;
@@ -177,10 +163,10 @@ public final class Tuning {
         return false;
     }
 
-    /** Restores every parameter, and the tilt direction, to the default. */
+    /** Restores every parameter, and the stroke direction, to the default. */
     public void reset() {
         Tuning d = new Tuning();
         for (Param p : PARAMS) set(p.key, d.get(p.key));
-        tiltInvert = d.tiltInvert;
+        strokeInvert = d.strokeInvert;
     }
 }

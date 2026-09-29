@@ -13,47 +13,51 @@ Android 16; the APK carries arm64 native code only.
 
 ## Gestures
 
-As the driver sees their own hand, held close to the tablet:
+As the driver sees their own hand, held close to the tablet, open, fingers up,
+palm to the tablet:
 
 | Gesture | Command |
 |---|---|
-| Tilt: hand up with the fingers out, palm to the tablet, pivoting at the wrist like a dial, fingers toward the driver's right | `VOL_UP`, one step per 25 degrees, continuous while it keeps tilting |
-| Tilt the same way, fingers toward the driver's left | `VOL_DOWN`, same feel |
-| Hand swipe to the driver's right | `NEXT` |
-| Hand swipe to the driver's left | `PREV` |
+| Raise the open hand (a flick up) | `VOL_UP`, one step per flick |
+| Lower the open hand (a flick down) | `VOL_DOWN`, one step per flick |
+| Swipe the hand to the driver's right | `NEXT` |
+| Swipe the hand to the driver's left | `PREV` |
 | Open palm (all four fingers out) held still about 0.6 s | `PLAY_PAUSE`, once; close the hand for 0.3 s, or take it away for 1.5 s, to arm it again |
 
+Raise the open hand to turn it up, lower it to turn it down, a flick per step;
+drop the hand out of view and flick up again for several steps up.
+
 A hand only counts when its bounding box reaches 0.18 of the frame height (so
-a hand on the wheel is ignored) and it has been there for 100 ms. Once armed it
-stays armed down to 0.13 (hysteresis: a real hand's box wobbles as it moves,
-and a single threshold flapped between arming and idle), and a tracking
-dropout shorter than 400 ms is forgiven.
+a hand on the wheel is ignored) and it has been there for 100 ms. Once armed,
+strokes keep tracking it down to 0.08, because at the bottom of a down stroke
+the hand shrinks and half leaves the frame; swipes and the palm hold still want
+the box above 0.13. A tracking dropout shorter than 400 ms is forgiven.
 
-Tilt is the in-plane angle of the wrist to middle-knuckle line (landmarks 0 to
-9), unwrapped across frames. A per-frame change between 1 and 20 degrees counts
-while the hand centre stays within 0.12 of the frame over half a second, so a
-swipe is never read as a tilt. No finger count is needed. Clockwise on the
-y-down screen, which is clockwise as the driver sees it, is up; the
-`tiltInvert` switch flips it, because the sign is to be confirmed in the car.
-Tilting has priority while active, is capped at 8 steps per second, and
-releases after 400 ms without movement. A palm that tilts gives volume, never
-play or pause.
+A stroke is the hand centre (mean of landmarks 0, 5, 9, 13 and 17) moving at
+least 0.08 of the frame vertically within 500 ms, with the vertical travel more
+than 1.5 times the horizontal. Up is `VOL_UP`, down is `VOL_DOWN`; the
+`strokeInvert` switch swaps them if needed. After a stroke the buffer is
+cleared and there is a 300 ms quiet period. The buffer is also cleared
+whenever the hand is lost or drops under the floor, which is why a hand that
+leaves the view and comes back lower does not count as a down stroke.
 
-A swipe needs 0.14 of the frame sideways within 450 ms, with vertical travel
-under 0.6 of the horizontal, and is followed by a 600 ms cooldown.
+A swipe is the horizontal counterpart: 0.14 of the frame sideways within
+450 ms, with vertical travel under 0.6 of the horizontal, then a 600 ms
+cooldown. Strokes are checked first, so the two never fire on the same frame.
 
-The palm hold needs the hand centre to stay within 0.04 and the tilt within 8
-degrees for 0.6 s. Its latch survives a size dropout or a short loss of
-tracking, so a palm that briefly reads too small cannot fire twice.
+The palm hold needs the hand centre to stay within 0.04 for 0.6 s; a palm that
+moves is a stroke or a swipe, never a hold. Its latch survives a size dropout
+or a short loss of tracking, so a palm that briefly reads too small cannot
+fire twice.
 
-The HUD word for the palm is "Play/Pause": the tablet cannot see the phone's
-player state, so it names the toggle rather than guessing which way it went.
+The HUD shows a round bubble with a plus or minus for a volume step, and an
+icon and a word for the others. The word for the palm is "Play/Pause": the
+tablet cannot see the phone's player state, so it names the toggle rather
+than guessing which way it went.
 
-Earlier builds used an index-finger circle for volume and a closed fist for
-play and pause. The owner's real gestures did not match them, and both are
-removed. A forearm roll read from the model's 3D landmarks was also tried and
-dropped before release, because the tracker loses the hand's shape when the
-palm turns edge-on.
+Earlier versions used an index-finger circle, then a forearm roll, then an
+in-plane tilt of the hand for volume, and a closed fist for play and pause.
+None matched how the owner actually moves in the car, and all are removed.
 
 ## How it works
 
@@ -181,7 +185,7 @@ entry does not do this.
 MainActivity extras: `start`, `stop` and `finish` (booleans) work as given.
 The settings extras, `autostart` (boolean), `token`, `manual` (manual phone
 address, empty to clear), `delegate` (`gpu`, the default, or `cpu`) and
-`tiltinvert` (boolean, which way of tilting is volume up), are
+`strokeinvert` (boolean, which way of stroking is volume up), are
 honoured only together with `auth` equal to the current relay token; otherwise
 the app logs `extras: bad auth, settings ignored`. The activity is exported, so
 without this another app could set a token of its choosing and then pass the
@@ -214,15 +218,15 @@ where motion is the gate's reading over those five seconds.
 
 Every threshold lives in `engine/Tuning.java`, grouped as arming
 (`minBoxHeight` 0.18, `minBoxHeightHold` 0.13, `armMs` 100, `lostGraceMs` 400),
-tilt (`tiltWindowMs` 500, `tiltMaxTravel` 0.12, `tiltMinDeltaDeg` 1,
-`tiltMaxDeltaDeg` 20, `tiltStepDeg` 25, `tiltMaxStepsPerSec` 8, `tiltReleaseMs`
-400, and the `tiltInvert` switch), swipe (`swipeMinDx` 0.14, `swipeWindowMs`
-450, `swipeMaxDyRatio` 0.6, `swipeCooldownMs` 600), palm (`palmHoldMs` 600,
-`palmMaxTravel` 0.04, `palmMaxTiltDeg` 8, `palmReleaseMs` 300,
-`palmUnlatchAbsentMs` 1500) and camera (`motionMinDiff` 3, `darkLuma` 50).
+stroke (`strokeMinBox` 0.08, `strokeWindowMs` 500, `strokeMinTravel` 0.08,
+`strokeVerticalRatio` 1.5, `strokeRefractoryMs` 300, and the `strokeInvert`
+switch), swipe (`swipeMinDx` 0.14, `swipeWindowMs` 450, `swipeMaxDyRatio` 0.6,
+`swipeCooldownMs` 600), palm (`palmHoldMs` 600, `palmMaxTravel` 0.04,
+`palmReleaseMs` 300, `palmUnlatchAbsentMs` 1500) and camera (`motionMinDiff` 3,
+`darkLuma` 50).
 
 The app screen has a slider for each (the hold height sits next to the arming
-height) and a switch for the tilt direction, applied live and saved, with a
+height) and a switch for the stroke direction, applied live and saved, with a
 reset to defaults. Only a value moved by hand is saved, so a changed default in
 a new build reaches every slider the user has not touched and leaves the ones
 they have; saved values for keys a build no longer has are removed on start.
@@ -230,40 +234,44 @@ The status screen shows the live motion reading and the light state. The
 Calibrate button shows the frames the model actually analysed (a mirror view),
 with the landmarks, the hand box (green at or above the arming height, amber
 between the hold and arming heights, red below), a bar the height of the arming
-gate, the light state, and the engine's live state line: state, box height
-(marked armed when the size gate holds), fingers extended, palm latch, tilt
-angle, the tilt accumulator and the hand's travel.
+gate, the light state, the hand centre's trail over the last 500 ms, an arrow
+where each stroke fired (fading over a second), and the engine's live state
+line: state, box height (marked armed when the size gate holds), fingers
+extended, palm latch, and the largest vertical and matching horizontal travel
+in the stroke buffer.
 
 ## Verified
 
 On the tablet, 29 Sep 2026, at a desk, tablet locked on its screensaver, the
 phone on the same home Wi-Fi running the companion relay:
 
-- Unit tests (`gradle test`): 30 of 30 pass, 24 for the engine and 6 for
+- Unit tests (`gradle test`): 31 of 31 pass, 25 for the engine and 6 for
   the tuning.
-  - Tilt: 5 degrees a frame for 12 frames with the centre fixed gives only
-    `VOL_UP` (2 steps); the reverse only `VOL_DOWN`; the same with two fingers
-    out and with no finger out; `tiltInvert` flips it; tilting out 20 degrees
-    and back gives nothing; a tilting open palm, fast or slow, steps the volume
-    and never gives `PLAY_PAUSE`.
+  - Strokes: an upward move of 0.15 over 4 frames gives exactly one `VOL_UP`;
+    downward exactly one `VOL_DOWN`; up, a 350 ms pause, then down gives
+    `VOL_UP` then `VOL_DOWN`; two upward strokes with the hand lost for 3
+    frames between them give two `VOL_UP`; a slow drift of 0.05 over 500 ms
+    gives nothing; `strokeInvert` swaps up and down.
+  - Strokes against swipes: a diagonal move with more sideways than vertical
+    travel gives a swipe and no stroke; a fast rightward sweep gives exactly
+    one `NEXT`; leftward gives `PREV`; a 0.16 swipe with 0.08 vertical drift
+    fires as a swipe, not a stroke; a 0.10 one does not fire.
+  - Size: a hand armed at 0.22 that then reads 0.10 still strokes; the same
+    motion at 0.10 from the start never arms and gives nothing; an armed hand
+    under the 0.08 floor gives nothing and drops to `IDLE`; an armed hand at
+    0.16 still swipes, at 0.10 it does not. A hand too small (0.15) gives
+    nothing for stroke, swipe and palm; with the gate lowered all three fire.
   - Palm: a palm held perfectly still for 700 ms gives exactly one
     `PLAY_PAUSE`; holding on gives no more; closing for 132 ms does not re-arm
-    it, closing for 330 ms and reopening fires again; a drifting palm never
-    fires. A size dropout in the middle of the hold (3 frames, and 10 frames,
-    past the grace) gives one, not two; a dropout after it fired, palm still
-    open, gives none; no hand for 1.65 s re-arms it, 0.99 s does not.
-  - Swipes: a fast rightward sweep gives exactly one `NEXT` and no tilt steps,
-    also when the hand tilts as it sweeps; leftward gives `PREV`; a 0.16 swipe
-    with 0.08 vertical drift fires, a 0.10 one does not.
-  - Size gate: a hand too small emits nothing for tilt, swipe and palm; a
-    control with the gate lowered fires all three. A box dipping from 0.22 to
-    0.16 mid-tilt (3 frames, and 8 frames, past the grace) keeps `TILTING` and
-    keeps emitting steps, including inside the long dip; a control dipping to
-    0.10 drops to `IDLE`.
+    it, closing for 330 ms and reopening fires again; a palm pumping up and
+    down gives three `VOL_UP` and three `VOL_DOWN` and never `PLAY_PAUSE`; a
+    drifting palm never fires. A size dropout in the middle of the hold (3
+    frames, and 10 frames, past the grace) gives one, not two; a dropout after
+    it fired gives none; no hand for 1.65 s re-arms it, 0.99 s does not.
   - Tuning: every key reads, writes and resets its own field, every default
     sits on its slider's step, the defaults are as listed above, reset restores
-    the tilt direction, the circle, fist and roll keys are gone, and the hold
-    slider sits after the arming slider.
+    the stroke direction, the circle, fist, roll and tilt keys are gone, and
+    the hold slider sits after the arming slider.
 - Camera opened: `camera: open, analysis stream 320x240`, sensor orientation
   270, display rotation 90, AE fps range [15, 15]; the status screen showed
   15.0 fps from the sensor.
@@ -326,12 +334,13 @@ phone on the same home Wi-Fi running the companion relay:
 - Night mode is untested in real darkness. The bench check forced it in a lit
   room; whether the extra exposure, the lower fps floor and the gamma lift let
   the tracker find a hand at night has not been seen.
-- Tilt and the palm hold have been tested only with synthetic landmarks so
-  far. The direction of tilt (which way is volume up) is to be confirmed in
-  the car, which is what `tiltInvert` is for. Earlier real-hand sessions at
-  the tablet drove the size hysteresis, the dropout grace, the lower motion
-  threshold, the latch rules and the swipe distances; none of it has been in a
-  moving car.
+- Strokes and the palm hold have been tested on the tablet only with synthetic
+  landmarks. The stroke rule was checked by the coordinator against the
+  owner's recorded gesture video with the same hand model, not by this build
+  on the tablet with a live hand. Earlier real-hand sessions at the tablet
+  drove the size hysteresis, the dropout grace, the lower motion threshold,
+  the latch rules and the swipe distances; none of it has been in a moving
+  car.
 - The receiver's frame budget (`Throughput over ... dropped=N, skipped=N`) has
   not been checked with Wave running, because the receiver was not projecting
   during the bench test. That is the acceptance check still to do in the car.

@@ -48,6 +48,11 @@ public final class Wave {
      *  as x0,y0,x1,y1..., or null when no hand. */
     public static volatile Bitmap calibFrame;
     public static volatile float[] calibLandmarks;
+    /** Hand centre trail for the last half second as x0,y0,x1,y1..., and the
+     *  last stroke fired as {x, y, +1 up or -1 down} at uptime strokeMarkAt. */
+    public static volatile float[] calibTrail;
+    public static volatile float[] strokeMark;
+    public static volatile long strokeMarkAt;
     /** One-shot request to save the next analysed frame, for checking the
      *  orientation transform by eye. */
     public static volatile boolean snapRequested;
@@ -117,7 +122,7 @@ public final class Wave {
                 if (k.startsWith("t_") && !Tuning.isKey(k.substring(2))) { e.remove(k); stale++; }
             }
             if (stale > 0) { e.apply(); log("tuning: removed " + stale + " saved values for retired keys"); }
-            if (sp.contains("tiltInvert")) TUNING.tiltInvert = sp.getBoolean("tiltInvert", false);
+            if (sp.contains("strokeInvert")) TUNING.strokeInvert = sp.getBoolean("strokeInvert", false);
             tuningLoaded = true;
         }
         return TUNING;
@@ -128,10 +133,10 @@ public final class Wave {
         p(c).edit().putLong("t_" + key, Double.doubleToLongBits(v)).apply();
     }
 
-    /** Which way of tilting is volume up; saved like a slider value. */
-    public static void saveTiltInvert(Context c, boolean on) {
-        TUNING.tiltInvert = on;
-        p(c).edit().putBoolean("tiltInvert", on).apply();
+    /** Which way of stroking is volume up; saved like a slider value. */
+    public static void saveStrokeInvert(Context c, boolean on) {
+        TUNING.strokeInvert = on;
+        p(c).edit().putBoolean("strokeInvert", on).apply();
     }
 
     /** Forgets a saved value, so the key follows the build default again. */
@@ -144,7 +149,7 @@ public final class Wave {
         TUNING.reset();
         SharedPreferences.Editor e = p(c).edit();
         for (Tuning.Param prm : Tuning.PARAMS) e.remove("t_" + prm.key);
-        e.remove("tiltInvert");
+        e.remove("strokeInvert");
         e.apply();
     }
 

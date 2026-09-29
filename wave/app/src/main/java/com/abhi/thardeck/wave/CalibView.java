@@ -33,6 +33,8 @@ final class CalibView extends View {
     private final Paint box = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint shade = new Paint();
+    private final Paint trailPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint markPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF dst = new RectF();
     private final float d;
 
@@ -48,6 +50,11 @@ final class CalibView extends View {
         text.setColor(Color.WHITE);
         text.setTextSize(14 * d);
         shade.setColor(Color.argb(160, 0, 0, 0));
+        trailPaint.setColor(Color.rgb(79, 195, 247));
+        trailPaint.setStrokeWidth(3 * d);
+        trailPaint.setStrokeCap(Paint.Cap.ROUND);
+        markPaint.setStrokeWidth(5 * d);
+        markPaint.setStrokeCap(Paint.Cap.ROUND);
     }
 
     @Override protected void onMeasure(int wSpec, int hSpec) {
@@ -89,6 +96,28 @@ final class CalibView extends View {
                     : bh2 >= Wave.TUNING.minBoxHeightHold ? Color.rgb(255, 202, 40)
                     : Color.rgb(239, 83, 80));
             c.drawRect(ox + minX * bw, oy + minY * bh, ox + maxX * bw, oy + maxY * bh, box);
+        }
+
+        // Hand centre over the last half second, and each stroke where it
+        // fired: an arrow up or down, fading over a second.
+        float[] tr = Wave.calibTrail;
+        if (tr != null && tr.length >= 4) {
+            for (int i = 2; i + 1 < tr.length; i += 2) {
+                c.drawLine(ox + tr[i - 2] * bw, oy + tr[i - 1] * bh,
+                        ox + tr[i] * bw, oy + tr[i + 1] * bh, trailPaint);
+            }
+        }
+        float[] mk = Wave.strokeMark;
+        long age = android.os.SystemClock.uptimeMillis() - Wave.strokeMarkAt;
+        if (mk != null && age < 1000) {
+            boolean up = mk[2] > 0;
+            markPaint.setColor(up ? Color.rgb(102, 187, 106) : Color.rgb(255, 152, 0));
+            markPaint.setAlpha((int) (255 * (1 - age / 1000f)));
+            float mx = ox + mk[0] * bw, my = oy + mk[1] * bh, a = 18 * d, dir = up ? -1 : 1;
+            c.drawLine(mx, my - dir * a, mx, my + dir * a, markPaint);
+            c.drawLine(mx, my + dir * a, mx - a / 2, my + dir * a / 2, markPaint);
+            c.drawLine(mx, my + dir * a, mx + a / 2, my + dir * a / 2, markPaint);
+            c.drawText(up ? "Vol +" : "Vol -", mx + a * 0.7f, my, text);
         }
 
         // Size gate reference: a bar as tall as the minimum hand height.

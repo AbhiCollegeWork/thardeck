@@ -22,9 +22,8 @@ import com.abhi.thardeck.wave.engine.Cmd;
  *
  * It is only attached while it has something to show, so there is no
  * persistent chrome over the projection:
- *   a discrete command shows an icon and a word for 900 ms
- *   while tilting is active it shows a ring whose arc follows the
- *   accumulator, with a plus or minus
+ *   next, previous and play or pause show an icon and a word for 900 ms
+ *   a volume step shows a round bubble with a ring and a plus or minus
  *
  * The window alpha is 0.8, the ceiling Android 12 and later allow for an
  * overlay that touches pass through; above it the system would block touches
@@ -32,14 +31,12 @@ import com.abhi.thardeck.wave.engine.Cmd;
  */
 final class Hud {
     static final long FLASH_MS = 900;
-    static final long RING_LINGER_MS = 300;
 
     private final Context ctx;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final WindowManager wm;
     private HudView view;
     private boolean attached;
-    private boolean ringActive;
 
     private final Runnable hideRunnable = new Runnable() { @Override public void run() { detach(); } };
 
@@ -48,44 +45,25 @@ final class Hud {
         wm = ctx.getSystemService(WindowManager.class);
     }
 
-    /** A discrete command: icon and word, or a full ring for a volume step. */
+    /** A command: icon and word, or the volume bubble for a step. */
     void command(final Cmd c) {
         main.post(new Runnable() { @Override public void run() {
             HudView v = ensureView();
             if (c == Cmd.VOL_UP || c == Cmd.VOL_DOWN) {
-                v.showRing(c == Cmd.VOL_UP ? 1f : -1f, c == Cmd.VOL_UP);
+                v.showVolume(c == Cmd.VOL_UP);
             } else {
                 v.showWord(c);
             }
             Wave.log("hud: " + describe(c));
             attach();
             main.removeCallbacks(hideRunnable);
-            if (!ringActive) main.postDelayed(hideRunnable, FLASH_MS);
-        }});
-    }
-
-    /** Live tilt state from the engine, every analysed frame. */
-    void tilt(final boolean active, final double progress) {
-        if (!active && !ringActive) return;
-        main.post(new Runnable() { @Override public void run() {
-            if (active) {
-                ringActive = true;
-                HudView v = ensureView();
-                v.showRing((float) progress, progress >= 0);
-                attach();
-                main.removeCallbacks(hideRunnable);
-            } else if (ringActive) {
-                ringActive = false;
-                main.removeCallbacks(hideRunnable);
-                main.postDelayed(hideRunnable, RING_LINGER_MS);
-            }
+            main.postDelayed(hideRunnable, FLASH_MS);
         }});
     }
 
     void release() {
         main.post(new Runnable() { @Override public void run() {
             main.removeCallbacks(hideRunnable);
-            ringActive = false;
             detach();
         }});
     }
@@ -148,14 +126,12 @@ final class Hud {
         private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fg = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint arc = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF r = new RectF();
         private final Path path = new Path();
         private final float d;
 
-        private boolean ringMode;
-        private float progress;
+        private boolean volumeMode;
         private boolean plus;
         private Cmd word;
 
@@ -165,39 +141,31 @@ final class Hud {
             bg.setColor(Color.argb(235, 16, 20, 26));
             fg.setColor(Color.WHITE);
             fg.setStyle(Paint.Style.FILL);
-            ring.setColor(Color.argb(90, 255, 255, 255));
+            ring.setColor(Color.rgb(79, 195, 247));
             ring.setStyle(Paint.Style.STROKE);
             ring.setStrokeWidth(4 * d);
-            arc.setColor(Color.rgb(79, 195, 247));
-            arc.setStyle(Paint.Style.STROKE);
-            arc.setStrokeWidth(4 * d);
-            arc.setStrokeCap(Paint.Cap.ROUND);
             text.setColor(Color.WHITE);
             text.setTextSize(22 * d);
             text.setFakeBoldText(true);
         }
 
-        void showRing(float p, boolean isPlus) {
-            ringMode = true; progress = p; plus = isPlus;
+        void showVolume(boolean up) {
+            volumeMode = true; plus = up;
             invalidate();
         }
 
         void showWord(Cmd c) {
-            ringMode = false; word = c;
+            volumeMode = false; word = c;
             invalidate();
         }
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
-            if (ringMode) {
-                // A round bubble, centred, with the arc and the sign.
+            if (volumeMode) {
+                // A round bubble, centred, with a ring and the sign.
                 float rad = h / 2f;
                 c.drawCircle(w / 2f, h / 2f, rad, bg);
-                float rr = rad - 8 * d;
-                r.set(w / 2f - rr, h / 2f - rr, w / 2f + rr, h / 2f + rr);
-                c.drawOval(r, ring);
-                float sweep = 360f * Math.max(-1f, Math.min(1f, progress));
-                if (Math.abs(sweep) > 1f) c.drawArc(r, -90f, sweep, false, arc);
+                c.drawCircle(w / 2f, h / 2f, rad - 8 * d, ring);
                 float s = 8 * d;
                 c.drawRect(w / 2f - s, h / 2f - 1.5f * d, w / 2f + s, h / 2f + 1.5f * d, fg);
                 if (plus) c.drawRect(w / 2f - 1.5f * d, h / 2f - s, w / 2f + 1.5f * d, h / 2f + s, fg);

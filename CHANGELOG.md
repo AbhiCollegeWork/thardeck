@@ -12,13 +12,16 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 ## [Unreleased]
 
 ### Changed
-- **Wave gesture set redesigned from the owner's own video.** Volume is now the
-  hand tilting at the wrist in the plane of the screen (25 degrees per step);
-  play/pause is an open palm held still for 600 ms; swipes now fire at 0.14 of
-  the frame width (measured real swipes travel 0.10 to 0.20). The fingertip
-  circle and the fist are gone. A forearm roll was measured three ways against
-  the same video and rejected: the tracker loses the hand when it turns edge-on,
-  so no formulation gave more than one step per gesture.
+- **Wave gesture set redesigned from the owner's own videos.** Volume is now
+  vertical strokes of the open hand: raise it for a step up, lower it for a step
+  down (0.08 of the frame within 500 ms, mostly vertical, 300 ms refractory);
+  play/pause is an open palm held still for 600 ms; swipes fire at 0.14 of the
+  frame width (measured real swipes travel 0.10 to 0.20). The fingertip circle
+  and the fist are gone. Two rotations were tried and rejected in between: a
+  forearm roll, measured three ways against the first video, fails because the
+  tracker loses the hand edge-on; an in-plane tilt was built, tested and
+  removed because rotation of any kind still confused the driver. The stroke
+  rule was fitted to a second video and reproduces the owner's own sequence.
 - **Wave night mode.** When the mean frame brightness drops below 50, exposure
   compensation goes to the maximum the camera reports (plus 2 EV here), the
   auto-exposure frame range widens to let the shutter lengthen, and a gamma
@@ -30,7 +33,7 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 
 ### Pending validation
 - Record-while-projecting feasibility for the planned dash cam is unmeasured
-- Wave's tilt and palm hold with a real hand (synthetic landmarks only so far); the tilt direction switch is confirmed live
+- Wave's strokes and palm hold with a live hand on the tablet (video and synthetic landmarks so far); the stroke direction switch is confirmed live
 - Wave night mode in real darkness
 - Wave frame cost after the redesign (the first engine measured `dropped=0`, 22 skipped in 60 s with the receiver projecting)
 - The companion's deferred-stop fix has not yet run on a drive

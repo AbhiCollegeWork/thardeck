@@ -46,7 +46,7 @@ import java.util.Locale;
  *   delegate   (string) gpu or cpu, for the hand landmarker
  *   token      (string) new relay token; takes effect on the next discovery
  *   manual     (string) manual phone address, empty to clear
- *   tiltinvert (bool) flip which way of tilting is volume up
+ *   strokeinvert (bool) flip which way of stroking is volume up
  */
 public class MainActivity extends Activity {
 
@@ -58,7 +58,7 @@ public class MainActivity extends Activity {
     public static final String EXTRA_TOKEN = "token";
     public static final String EXTRA_MANUAL = "manual";
     public static final String EXTRA_AUTH = "auth";
-    public static final String EXTRA_TILT_INVERT = "tiltinvert";
+    public static final String EXTRA_STROKE_INVERT = "strokeinvert";
 
     private static final int REQ_PERMS = 1;
 
@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
         setTurnScreenOn(transientLaunch);
         boolean wantsSettings = i.hasExtra(EXTRA_AUTOSTART) || i.hasExtra(EXTRA_TOKEN)
                 || i.hasExtra(EXTRA_MANUAL) || i.hasExtra(EXTRA_DELEGATE)
-                || i.hasExtra(EXTRA_TILT_INVERT);
+                || i.hasExtra(EXTRA_STROKE_INVERT);
         if (wantsSettings) {
             // The activity is exported, so settings by extra need the current
             // relay token, or another app could set a token of its choosing and
@@ -132,11 +132,11 @@ public class MainActivity extends Activity {
             restartPipelineIfRunning();
             buildUi();
         }
-        if (wantsSettings && i.hasExtra(EXTRA_TILT_INVERT)) {
-            boolean on = i.getBooleanExtra(EXTRA_TILT_INVERT, false);
+        if (wantsSettings && i.hasExtra(EXTRA_STROKE_INVERT)) {
+            boolean on = i.getBooleanExtra(EXTRA_STROKE_INVERT, false);
             Wave.tuning(this);
-            Wave.saveTiltInvert(this, on);
-            Wave.log("tilt direction " + (on ? "inverted" : "normal"));
+            Wave.saveStrokeInvert(this, on);
+            Wave.log("stroke direction " + (on ? "inverted" : "normal"));
             buildUi();
         }
         if (i.getBooleanExtra(EXTRA_STOP, false)) stopService();
@@ -289,17 +289,17 @@ public class MainActivity extends Activity {
         col.addView(section("Tuning (live, saved on change)"));
         final Tuning tu = Wave.tuning(this);
         final Switch invert = new Switch(this);
-        invert.setText("Tilt: invert direction (which way is volume up)");
-        invert.setChecked(tu.tiltInvert);
+        invert.setText("Stroke: invert up and down (which way is volume up)");
+        invert.setChecked(tu.strokeInvert);
         invert.setPadding(0, pad / 4, 0, pad / 2);
         invert.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override public void onCheckedChanged(CompoundButton b, boolean on) {
-                Wave.saveTiltInvert(MainActivity.this, on);
-                Wave.log("tilt direction " + (on ? "inverted" : "normal"));
+                Wave.saveStrokeInvert(MainActivity.this, on);
+                Wave.log("stroke direction " + (on ? "inverted" : "normal"));
             }
         });
         sliderRefreshers.add(new Runnable() { @Override public void run() {
-            invert.setChecked(tu.tiltInvert);
+            invert.setChecked(tu.strokeInvert);
         }});
         col.addView(invert);
         for (final Tuning.Param p : Tuning.PARAMS) {

@@ -119,10 +119,10 @@ remains the only route that would remove the developer-mode server entirely.
 ### Gesture control of the music (Wave)
 Built and bench-verified. A second app on the tablet watches the front camera
 with MediaPipe hand tracking (Google, Apache 2.0) and turns three gestures into
-media commands: the hand tilting at the wrist like a dial, palm to the tablet,
-for volume (fingers toward the driver's right is up, continuous while it
-tilts); an open-hand swipe left or right for previous and next; an open palm
-held still for play or pause. Night mode raises exposure and brightens the
+media commands: the open hand raised for a step up in volume and lowered for
+a step down (a flick per step, fingers up, palm to the tablet); an open-hand
+swipe left or right for previous and next; an open palm held still for play
+or pause. Night mode raises exposure and brightens the
 frame when the cabin is dark. Because the music never touches
 the tablet (it is A2DP from the phone to the car), the tablet relays each
 command over UDP to the phone's companion app, which applies it to the phone's
@@ -136,11 +136,14 @@ reached the phone; with the receiver projecting and a hand in view for a
 minute, `dropped=0` in every window and 22 skipped frames in total, about
 0.7 percent. The gesture engine is pure Java with 30 unit tests. The gesture
 set was redesigned after that session from a video of the owner's own hand:
-the fingertip circle and the fist were replaced by the tilt and the palm hold,
-and a forearm roll was measured and rejected because the tracker loses the
-hand when it turns edge-on. What is **not** verified yet: the tilt and palm
-hold with a real hand (only synthetic landmarks so far), night mode in real
-darkness, and the whole thing in a moving car. Source and notes in
+the fingertip circle and the fist were replaced by vertical strokes and the
+palm hold. Every rotation tried in between (a forearm roll, measured three
+ways, and an in-plane tilt) was rejected: the roll because the tracker loses
+the hand when it turns edge-on, the tilt because it still confused the driver.
+The stroke rule was fitted to a second video and reproduces the owner's own
+sequence with no phantom strokes. What is **not** verified yet: the strokes and
+palm hold with a live hand on the tablet (video and synthetic landmarks so
+far), night mode in real darkness, and the whole thing in a moving car. Source and notes in
 [`wave/`](../wave/README.md).
 
 ## Further out
