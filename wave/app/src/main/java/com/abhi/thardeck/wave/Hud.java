@@ -23,7 +23,7 @@ import com.abhi.thardeck.wave.engine.Cmd;
  * It is only attached while it has something to show, so there is no
  * persistent chrome over the projection:
  *   a discrete command shows an icon and a word for 900 ms
- *   while rotation is active it shows a ring whose arc follows the
+ *   while tilting is active it shows a ring whose arc follows the
  *   accumulator, with a plus or minus
  *
  * The window alpha is 0.8, the ceiling Android 12 and later allow for an
@@ -64,8 +64,8 @@ final class Hud {
         }});
     }
 
-    /** Live rotation state from the engine, every analysed frame. */
-    void rotation(final boolean active, final double progress) {
+    /** Live tilt state from the engine, every analysed frame. */
+    void tilt(final boolean active, final double progress) {
         if (!active && !ringActive) return;
         main.post(new Runnable() { @Override public void run() {
             if (active) {

@@ -36,6 +36,11 @@ public final class Wave {
      *  reading (mean absolute luma difference, 0..255). */
     public static volatile boolean gateOn;
     public static volatile float motion;
+    /** Low light: night mode, the mean luma it is judged on, and the sensor
+     *  exposure time the camera last reported. */
+    public static volatile boolean night;
+    public static volatile int luma;
+    public static volatile float exposureMs;
 
     /** Set while the calibrate view is on screen. */
     public static volatile boolean calibrating;
@@ -97,12 +102,22 @@ public final class Wave {
     public static synchronized Tuning tuning(Context c) {
         if (!tuningLoaded) {
             SharedPreferences sp = p(c);
+            // Only keys someone saved by hand override the defaults, so a new
+            // default in a new build reaches every untouched slider.
             for (Tuning.Param prm : Tuning.PARAMS) {
                 String k = "t_" + prm.key;
                 if (sp.contains(k)) {
                     TUNING.set(prm.key, Double.longBitsToDouble(sp.getLong(k, 0)));
                 }
             }
+            // Values saved for recognisers this build no longer has are stale.
+            SharedPreferences.Editor e = sp.edit();
+            int stale = 0;
+            for (String k : sp.getAll().keySet()) {
+                if (k.startsWith("t_") && !Tuning.isKey(k.substring(2))) { e.remove(k); stale++; }
+            }
+            if (stale > 0) { e.apply(); log("tuning: removed " + stale + " saved values for retired keys"); }
+            if (sp.contains("tiltInvert")) TUNING.tiltInvert = sp.getBoolean("tiltInvert", false);
             tuningLoaded = true;
         }
         return TUNING;
@@ -113,10 +128,23 @@ public final class Wave {
         p(c).edit().putLong("t_" + key, Double.doubleToLongBits(v)).apply();
     }
 
+    /** Which way of tilting is volume up; saved like a slider value. */
+    public static void saveTiltInvert(Context c, boolean on) {
+        TUNING.tiltInvert = on;
+        p(c).edit().putBoolean("tiltInvert", on).apply();
+    }
+
+    /** Forgets a saved value, so the key follows the build default again. */
+    public static void clearTuning(Context c, String key) {
+        TUNING.set(key, new Tuning().get(key));
+        p(c).edit().remove("t_" + key).apply();
+    }
+
     public static void resetTuning(Context c) {
         TUNING.reset();
         SharedPreferences.Editor e = p(c).edit();
         for (Tuning.Param prm : Tuning.PARAMS) e.remove("t_" + prm.key);
+        e.remove("tiltInvert");
         e.apply();
     }
 

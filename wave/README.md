@@ -17,20 +17,43 @@ As the driver sees their own hand, held close to the tablet:
 
 | Gesture | Command |
 |---|---|
-| Index finger circling clockwise | `VOL_UP`, one step per 50 degrees, like a rotary knob |
-| Index finger circling anticlockwise | `VOL_DOWN`, same feel |
-| Open hand swipe to the driver's right | `NEXT` |
-| Open hand swipe to the driver's left | `PREV` |
-| Closed fist held still about half a second | `PLAY_PAUSE`, once; open the hand to arm it again |
+| Tilt: hand up with the fingers out, palm to the tablet, pivoting at the wrist like a dial, fingers toward the driver's right | `VOL_UP`, one step per 25 degrees, continuous while it keeps tilting |
+| Tilt the same way, fingers toward the driver's left | `VOL_DOWN`, same feel |
+| Hand swipe to the driver's right | `NEXT` |
+| Hand swipe to the driver's left | `PREV` |
+| Open palm (all four fingers out) held still about 0.6 s | `PLAY_PAUSE`, once; close the hand for 0.3 s, or take it away for 1.5 s, to arm it again |
 
-A hand only counts when its bounding box is at least 0.28 of the frame height
-(so a hand on the wheel is ignored) and it has been there for 150 ms. Rotation
-has priority while it is active and releases after 400 ms without turning. A
-swipe needs 0.30 of the frame sideways within 450 ms, mostly level, and is
-followed by a 600 ms cooldown. Volume steps are capped at 8 per second.
+A hand only counts when its bounding box reaches 0.18 of the frame height (so
+a hand on the wheel is ignored) and it has been there for 100 ms. Once armed it
+stays armed down to 0.13 (hysteresis: a real hand's box wobbles as it moves,
+and a single threshold flapped between arming and idle), and a tracking
+dropout shorter than 400 ms is forgiven.
 
-The HUD word for the fist is "Play/Pause": the tablet cannot see the phone's
+Tilt is the in-plane angle of the wrist to middle-knuckle line (landmarks 0 to
+9), unwrapped across frames. A per-frame change between 1 and 20 degrees counts
+while the hand centre stays within 0.12 of the frame over half a second, so a
+swipe is never read as a tilt. No finger count is needed. Clockwise on the
+y-down screen, which is clockwise as the driver sees it, is up; the
+`tiltInvert` switch flips it, because the sign is to be confirmed in the car.
+Tilting has priority while active, is capped at 8 steps per second, and
+releases after 400 ms without movement. A palm that tilts gives volume, never
+play or pause.
+
+A swipe needs 0.14 of the frame sideways within 450 ms, with vertical travel
+under 0.6 of the horizontal, and is followed by a 600 ms cooldown.
+
+The palm hold needs the hand centre to stay within 0.04 and the tilt within 8
+degrees for 0.6 s. Its latch survives a size dropout or a short loss of
+tracking, so a palm that briefly reads too small cannot fire twice.
+
+The HUD word for the palm is "Play/Pause": the tablet cannot see the phone's
 player state, so it names the toggle rather than guessing which way it went.
+
+Earlier builds used an index-finger circle for volume and a closed fist for
+play and pause. The owner's real gestures did not match them, and both are
+removed. A forearm roll read from the model's 3D landmarks was also tried and
+dropped before release, because the tracker loses the hand's shape when the
+palm turns edge-on.
 
 ## How it works
 
@@ -39,6 +62,7 @@ CameraX front camera, 320x240, keep-only-latest, AE range capped at 15 fps
   -> throttle: 15 fps with a hand seen in the last 2 s, else 5 fps
   -> presence gate: 40x30 luma difference; no recent hand and no motion
      means the frame stops here and the landmarker stays idle
+  -> low light: the same sample's mean luma switches night mode
   -> rotate upright for the current display rotation, then mirror
      (the one place raw pixels become the driver's frame, +x = driver's right)
   -> MediaPipe HandLandmarker, LIVE_STREAM, 1 hand, GPU delegate, CPU fallback
@@ -62,12 +86,32 @@ The presence gate keeps the landmarker off while the cabin is still. Each
 throttled frame (5 fps when idle) has its luma plane sampled on a 40x30 grid,
 read in place with one reused buffer, and compared with the previous sample.
 The landmarker runs when the mean absolute difference exceeds `motionMinDiff`
-(default 6 on the 0..255 scale), or a hand was seen in the last 2 s so
+(default 3 on the 0..255 scale), or a hand was seen in the last 2 s so
 tracking never drops out mid-gesture, or on the first frame after a start so a
 model or delegate failure surfaces at once. Motion runs the landmarker on that
 same frame; a hand found then lifts the rate to 15 fps as before. The gate is
 also held open while the Calibrate view is on screen. Transitions are logged
 once each (`gate: motion, landmarker on`, `gate: still, landmarker off`).
+
+Low light. The mean luma of the same 40x30 sample decides night mode: it
+starts below `darkLuma` (default 50) and ends above `darkLuma` plus 15, and each
+change is logged once (`light: night on, luma N`, `light: day, luma N`). In
+night mode:
+
+- exposure compensation goes to the top of the range the camera reports, and
+  the auto exposure fps range goes to one with a lower floor, so the shutter
+  may stay open longer. The design asked for [5, 15]; this camera does not
+  offer it, so the app takes the lowest floor on offer, [8, 30]. Day restores
+  compensation 0 and [15, 15]. A capture callback logs what the camera
+  actually applied (`camera: applied AE range ..., exposure compensation index
+  ..., exposure N ms`), not just what was asked.
+- before the landmarker, the Y plane goes through a precomputed gamma 0.5 LUT
+  and is converted to RGB in one reused pixel buffer and one reused bitmap.
+  The camera's own buffers are only read.
+- the motion gate threshold is scaled by max(0.35, luma / 120), because
+  differences shrink with the signal in the dark.
+
+The status screen and the calibrate view show `Light: day|night (luma N)`.
 
 The display rotation is followed live (the receiver turns the screen to
 landscape when projection starts), so the transform is right whenever the
@@ -136,7 +180,8 @@ entry does not do this.
 
 MainActivity extras: `start`, `stop` and `finish` (booleans) work as given.
 The settings extras, `autostart` (boolean), `token`, `manual` (manual phone
-address, empty to clear) and `delegate` (`gpu`, the default, or `cpu`), are
+address, empty to clear), `delegate` (`gpu`, the default, or `cpu`) and
+`tiltinvert` (boolean, which way of tilting is volume up), are
 honoured only together with `auth` equal to the current relay token; otherwise
 the app logs `extras: bad auth, settings ignored`. The activity is exported, so
 without this another app could set a token of its choosing and then pass the
@@ -162,31 +207,63 @@ token is what keeps other apps on the tablet from driving the phone through it.
 Logs are at tag `THARWAVE`: engine transitions and commands, discovery, sends,
 PONGs, HUD lines, camera state, the chosen transform, the delegate, gate
 transitions, and every five seconds
-`stats: analysed=N fps=F infer_ms=M hand=P% gate=on|off motion=AVG/MAX`, where
-motion is the gate's reading over those five seconds.
+`stats: analysed=N fps=F infer_ms=M hand=P% gate=on|off motion=AVG/MAX light=day|night luma=N`,
+where motion is the gate's reading over those five seconds.
 
 ## Tuning
 
-Every threshold lives in `engine/Tuning.java`, including the presence gate's
-`motionMinDiff`; the status screen shows the live motion reading next to it.
-The app screen has a slider for each, applied live and saved, with a reset to defaults. The Calibrate button
-shows the frames the model actually analysed (a mirror view), with the
-landmarks, the hand box (green when it passes the size gate), a bar the height
-of the gate, and the engine's live state line: state, box height, fist,
-fingertip radius, roundness and the rotation accumulator.
+Every threshold lives in `engine/Tuning.java`, grouped as arming
+(`minBoxHeight` 0.18, `minBoxHeightHold` 0.13, `armMs` 100, `lostGraceMs` 400),
+tilt (`tiltWindowMs` 500, `tiltMaxTravel` 0.12, `tiltMinDeltaDeg` 1,
+`tiltMaxDeltaDeg` 20, `tiltStepDeg` 25, `tiltMaxStepsPerSec` 8, `tiltReleaseMs`
+400, and the `tiltInvert` switch), swipe (`swipeMinDx` 0.14, `swipeWindowMs`
+450, `swipeMaxDyRatio` 0.6, `swipeCooldownMs` 600), palm (`palmHoldMs` 600,
+`palmMaxTravel` 0.04, `palmMaxTiltDeg` 8, `palmReleaseMs` 300,
+`palmUnlatchAbsentMs` 1500) and camera (`motionMinDiff` 3, `darkLuma` 50).
+
+The app screen has a slider for each (the hold height sits next to the arming
+height) and a switch for the tilt direction, applied live and saved, with a
+reset to defaults. Only a value moved by hand is saved, so a changed default in
+a new build reaches every slider the user has not touched and leaves the ones
+they have; saved values for keys a build no longer has are removed on start.
+The status screen shows the live motion reading and the light state. The
+Calibrate button shows the frames the model actually analysed (a mirror view),
+with the landmarks, the hand box (green at or above the arming height, amber
+between the hold and arming heights, red below), a bar the height of the arming
+gate, the light state, and the engine's live state line: state, box height
+(marked armed when the size gate holds), fingers extended, palm latch, tilt
+angle, the tilt accumulator and the hand's travel.
 
 ## Verified
 
 On the tablet, 29 Sep 2026, at a desk, tablet locked on its screensaver, the
 phone on the same home Wi-Fi running the companion relay:
 
-- Unit tests (`gradle test`): 11 of 11 pass. Two check that every tuning key
-  reads, writes and resets its own field. The other nine include the five cases the design
-  asks for: a 20 point clockwise circle gives only `VOL_UP` (4 steps), an
-  anticlockwise one only `VOL_DOWN` (4), a fast rightward sweep exactly one
-  `NEXT`, a held fist exactly one `PLAY_PAUSE`, and a hand too small emits
-  nothing. A control test runs the same small-hand motions with the size gate
-  lowered and they fire, so it is the gate that silences them.
+- Unit tests (`gradle test`): 30 of 30 pass, 24 for the engine and 6 for
+  the tuning.
+  - Tilt: 5 degrees a frame for 12 frames with the centre fixed gives only
+    `VOL_UP` (2 steps); the reverse only `VOL_DOWN`; the same with two fingers
+    out and with no finger out; `tiltInvert` flips it; tilting out 20 degrees
+    and back gives nothing; a tilting open palm, fast or slow, steps the volume
+    and never gives `PLAY_PAUSE`.
+  - Palm: a palm held perfectly still for 700 ms gives exactly one
+    `PLAY_PAUSE`; holding on gives no more; closing for 132 ms does not re-arm
+    it, closing for 330 ms and reopening fires again; a drifting palm never
+    fires. A size dropout in the middle of the hold (3 frames, and 10 frames,
+    past the grace) gives one, not two; a dropout after it fired, palm still
+    open, gives none; no hand for 1.65 s re-arms it, 0.99 s does not.
+  - Swipes: a fast rightward sweep gives exactly one `NEXT` and no tilt steps,
+    also when the hand tilts as it sweeps; leftward gives `PREV`; a 0.16 swipe
+    with 0.08 vertical drift fires, a 0.10 one does not.
+  - Size gate: a hand too small emits nothing for tilt, swipe and palm; a
+    control with the gate lowered fires all three. A box dipping from 0.22 to
+    0.16 mid-tilt (3 frames, and 8 frames, past the grace) keeps `TILTING` and
+    keeps emitting steps, including inside the long dip; a control dipping to
+    0.10 drops to `IDLE`.
+  - Tuning: every key reads, writes and resets its own field, every default
+    sits on its slider's step, the defaults are as listed above, reset restores
+    the tilt direction, the circle, fist and roll keys are gone, and the hold
+    slider sits after the arming slider.
 - Camera opened: `camera: open, analysis stream 320x240`, sensor orientation
   270, display rotation 90, AE fps range [15, 15]; the status screen showed
   15.0 fps from the sensor.
@@ -200,7 +277,9 @@ phone on the same home Wi-Fi running the companion relay:
 - With the presence gate, at the same still desk: the first frame after start
   ran the landmarker, then `gate: still, landmarker off`, and the stats read
   `analysed=0 fps=0.0 infer_ms=0 hand=0% gate=off motion=1.1/1.1`. The still
-  scene measures about 1.1 against the threshold of 6. The gate woke on two
+  scene measures about 1.1 against the threshold of 6 in force then (now 3,
+  after real-hand calibration found a slow approach reading 2.4 to 3.6 and
+  never waking the tracker). The gate woke on two
   real scene changes: the camera's exposure settling at start (motion 6.4) and
   the screen lighting up when the app launched (`gate: motion, landmarker on`,
   then `gate: still, landmarker off` about 200 ms later). No hand was
@@ -211,10 +290,26 @@ phone on the same home Wi-Fi running the companion relay:
   a missing or wrong token logged `sim: bad token, dropped` and sent nothing.
   A settings extra without `auth` logged `extras: bad auth, settings ignored`
   and changed nothing.
-- Discovery: the phone answered the broadcast PING (the gateway on a home
-  network is the router, which does not answer). With a wrong token the phone
+- Discovery: on home Wi-Fi the phone answered the broadcast PING (the gateway
+  there is the router, which does not answer). With the tablet on the phone's
+  hotspot, the phone answered the gateway PING, the first probe. With a wrong token the phone
   dropped everything: after three unanswered commands the sender re-probed,
   logged `no phone found` at info level, and logged later commands as not sent.
+- Low light, on a build with the same pipeline code as this one and a
+  temporary adb extra that raised `darkLuma` in memory only (since removed):
+  - at camera open: `exposure compensation range [-20, 20] index, step 1/10
+    EV; AE fps ranges [[15, 15], [15, 20], [20, 20], [24, 24], [8, 30],
+    [10, 30], [15, 30], [30, 30]]; night range [8, 30]`.
+  - at the desk: `light=day luma=117..118`.
+  - forcing night: `light: night on, luma 117`, then the camera reported
+    `applied AE range [8, 30], exposure compensation index 20`, and luma rose
+    to 176. The last capture before day came back showed a 70 ms exposure,
+    longer than 15 fps allows, so the lower floor did let the shutter stay
+    open longer. A SNAP frame taken in night mode, through the gamma LUT path,
+    was bright, upright and correctly coloured.
+  - restoring: `light: day, luma 176`, and the camera reported `applied AE
+    range [15, 15], exposure compensation index 0`, luma back to 118. Nothing
+    was saved to the preferences.
 - HUD window: added as an `APPLICATION_OVERLAY`, 431x120 px at top centre,
   alpha 0.8, not touchable or focusable, removed after 900 ms.
 - Cost, one minute each, no hand in view, from `/proc/<pid>/stat`:
@@ -228,9 +323,15 @@ phone on the same home Wi-Fi running the companion relay:
 
 ## Limitations
 
-- No real hand has been through the pipeline yet. The recognisers are tested
-  only with synthetic landmarks, and the thresholds are the design defaults
-  until a calibration session in the car.
+- Night mode is untested in real darkness. The bench check forced it in a lit
+  room; whether the extra exposure, the lower fps floor and the gamma lift let
+  the tracker find a hand at night has not been seen.
+- Tilt and the palm hold have been tested only with synthetic landmarks so
+  far. The direction of tilt (which way is volume up) is to be confirmed in
+  the car, which is what `tiltInvert` is for. Earlier real-hand sessions at
+  the tablet drove the size hysteresis, the dropout grace, the lower motion
+  threshold, the latch rules and the swipe distances; none of it has been in a
+  moving car.
 - The receiver's frame budget (`Throughput over ... dropped=N, skipped=N`) has
   not been checked with Wave running, because the receiver was not projecting
   during the bench test. That is the acceptance check still to do in the car.

@@ -119,21 +119,29 @@ remains the only route that would remove the developer-mode server entirely.
 ### Gesture control of the music (Wave)
 Built and bench-verified. A second app on the tablet watches the front camera
 with MediaPipe hand tracking (Google, Apache 2.0) and turns three gestures into
-media commands: index finger circling clockwise or anticlockwise for volume,
-like a rotary knob; an open-hand swipe left or right for previous and next; a
-fist held for half a second for play or pause. Because the music never touches
+media commands: the hand tilting at the wrist like a dial, palm to the tablet,
+for volume (fingers toward the driver's right is up, continuous while it
+tilts); an open-hand swipe left or right for previous and next; an open palm
+held still for play or pause. Night mode raises exposure and brightens the
+frame when the cabin is dark. Because the music never touches
 the tablet (it is A2DP from the phone to the car), the tablet relays each
 command over UDP to the phone's companion app, which applies it to the phone's
 media volume and media keys. On the hotspot the phone is the tablet's gateway,
 so discovery needs no setup.
 
-Bench-verified end to end: a simulated volume step on the tablet moved the
-phone's media volume up one step and back down, with the relay acknowledging
-each. The gesture engine is pure Java with unit tests for every gesture. What
-is **not** verified yet: a real hand (the thresholds are design defaults until
-a calibration session), the acceptance rule that the receiver keeps
-`dropped=0, skipped=0` with a hand in view (needs the receiver projecting), and
-the whole thing in a moving car. Source and notes in [`wave/`](../wave/README.md).
+Verified: a simulated volume step on the tablet moved the phone's media
+volume up one step and back down, with the relay acknowledging each; in a live
+session over the phone's hotspot, real swipes, volume steps and a play/pause
+reached the phone; with the receiver projecting and a hand in view for a
+minute, `dropped=0` in every window and 22 skipped frames in total, about
+0.7 percent. The gesture engine is pure Java with 30 unit tests. The gesture
+set was redesigned after that session from a video of the owner's own hand:
+the fingertip circle and the fist were replaced by the tilt and the palm hold,
+and a forearm roll was measured and rejected because the tracker loses the
+hand when it turns edge-on. What is **not** verified yet: the tilt and palm
+hold with a real hand (only synthetic landmarks so far), night mode in real
+darkness, and the whole thing in a moving car. Source and notes in
+[`wave/`](../wave/README.md).
 
 ## Further out
 

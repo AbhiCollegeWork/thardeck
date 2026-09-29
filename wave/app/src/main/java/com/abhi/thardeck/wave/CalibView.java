@@ -83,8 +83,11 @@ final class CalibView extends View {
                 minY = Math.min(minY, y); maxY = Math.max(maxY, y);
                 c.drawCircle(ox + x * bw, oy + y * bh, (i == 8 ? 5 : 3) * d, i == 8 ? tip : dot);
             }
-            boolean bigEnough = (maxY - minY) >= Wave.TUNING.minBoxHeight;
-            box.setColor(bigEnough ? Color.rgb(102, 187, 106) : Color.rgb(239, 83, 80));
+            // Green arms, amber holds an armed hand, red is too far away.
+            float bh2 = maxY - minY;
+            box.setColor(bh2 >= Wave.TUNING.minBoxHeight ? Color.rgb(102, 187, 106)
+                    : bh2 >= Wave.TUNING.minBoxHeightHold ? Color.rgb(255, 202, 40)
+                    : Color.rgb(239, 83, 80));
             c.drawRect(ox + minX * bw, oy + minY * bh, ox + maxX * bw, oy + maxY * bh, box);
         }
 
@@ -95,6 +98,8 @@ final class CalibView extends View {
 
         c.drawRect(ox, oy, ox + bw, oy + 24 * d, shade);
         c.drawText(Wave.engineLine, ox + 6 * d, oy + 17 * d, text);
-        c.drawText("mirror view: your right is on the right", ox + 18 * d, oy + bh - 8 * d, text);
+        c.drawText("mirror view: your right is on the right   Light: "
+                + (Wave.night ? "night" : "day") + " (luma " + Wave.luma + ")",
+                ox + 18 * d, oy + bh - 8 * d, text);
     }
 }

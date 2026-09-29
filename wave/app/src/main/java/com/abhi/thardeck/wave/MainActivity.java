@@ -46,6 +46,7 @@ import java.util.Locale;
  *   delegate   (string) gpu or cpu, for the hand landmarker
  *   token      (string) new relay token; takes effect on the next discovery
  *   manual     (string) manual phone address, empty to clear
+ *   tiltinvert (bool) flip which way of tilting is volume up
  */
 public class MainActivity extends Activity {
 
@@ -57,6 +58,7 @@ public class MainActivity extends Activity {
     public static final String EXTRA_TOKEN = "token";
     public static final String EXTRA_MANUAL = "manual";
     public static final String EXTRA_AUTH = "auth";
+    public static final String EXTRA_TILT_INVERT = "tiltinvert";
 
     private static final int REQ_PERMS = 1;
 
@@ -96,7 +98,8 @@ public class MainActivity extends Activity {
         setShowWhenLocked(transientLaunch);
         setTurnScreenOn(transientLaunch);
         boolean wantsSettings = i.hasExtra(EXTRA_AUTOSTART) || i.hasExtra(EXTRA_TOKEN)
-                || i.hasExtra(EXTRA_MANUAL) || i.hasExtra(EXTRA_DELEGATE);
+                || i.hasExtra(EXTRA_MANUAL) || i.hasExtra(EXTRA_DELEGATE)
+                || i.hasExtra(EXTRA_TILT_INVERT);
         if (wantsSettings) {
             // The activity is exported, so settings by extra need the current
             // relay token, or another app could set a token of its choosing and
@@ -127,6 +130,13 @@ public class MainActivity extends Activity {
             Wave.setDelegatePref(this, i.getStringExtra(EXTRA_DELEGATE));
             Wave.log("delegate preference set to " + Wave.delegatePref(this));
             restartPipelineIfRunning();
+            buildUi();
+        }
+        if (wantsSettings && i.hasExtra(EXTRA_TILT_INVERT)) {
+            boolean on = i.getBooleanExtra(EXTRA_TILT_INVERT, false);
+            Wave.tuning(this);
+            Wave.saveTiltInvert(this, on);
+            Wave.log("tilt direction " + (on ? "inverted" : "normal"));
             buildUi();
         }
         if (i.getBooleanExtra(EXTRA_STOP, false)) stopService();
@@ -278,6 +288,20 @@ public class MainActivity extends Activity {
         // ---- tuning ----
         col.addView(section("Tuning (live, saved on change)"));
         final Tuning tu = Wave.tuning(this);
+        final Switch invert = new Switch(this);
+        invert.setText("Tilt: invert direction (which way is volume up)");
+        invert.setChecked(tu.tiltInvert);
+        invert.setPadding(0, pad / 4, 0, pad / 2);
+        invert.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(CompoundButton b, boolean on) {
+                Wave.saveTiltInvert(MainActivity.this, on);
+                Wave.log("tilt direction " + (on ? "inverted" : "normal"));
+            }
+        });
+        sliderRefreshers.add(new Runnable() { @Override public void run() {
+            invert.setChecked(tu.tiltInvert);
+        }});
+        col.addView(invert);
         for (final Tuning.Param p : Tuning.PARAMS) {
             final TextView label = new TextView(this);
             final SeekBar bar = new SeekBar(this);
@@ -331,6 +355,8 @@ public class MainActivity extends Activity {
                 Wave.analysedFps, Wave.inferMs, Wave.delegate)).append('\n');
         b.append(String.format(Locale.ROOT, "Presence gate: %s, motion %.1f (wakes above %.1f)",
                 Wave.gateOn ? "on" : "off", Wave.motion, Wave.TUNING.motionMinDiff)).append('\n');
+        b.append(String.format(Locale.ROOT, "Light: %s (luma %d), exposure %.1f ms",
+                Wave.night ? "night" : "day", Wave.luma, Wave.exposureMs)).append('\n');
         b.append("Hand present: ").append(Wave.handPresent ? "yes" : "no")
                 .append(" (").append(Wave.handPct).append("% of last 5 s)").append('\n');
         b.append("Last command: ").append(Wave.lastCommand).append('\n');

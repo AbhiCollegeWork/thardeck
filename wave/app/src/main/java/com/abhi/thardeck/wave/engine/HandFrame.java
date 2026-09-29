@@ -30,9 +30,7 @@ public final class HandFrame {
 
     /** A hand, with its bounding box taken from the landmarks themselves. */
     public static HandFrame of(long t, float[] x, float[] y) {
-        if (x == null || y == null || x.length < N || y.length < N) {
-            throw new IllegalArgumentException("need 21 landmarks");
-        }
+        check(x, y);
         float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
         for (int i = 0; i < N; i++) {
@@ -42,5 +40,19 @@ public final class HandFrame {
         return new HandFrame(t, true, x, y, minX, minY, maxX, maxY);
     }
 
+    /** A hand with an explicitly given bounding box, for tests that need an
+     *  exact box height. */
+    public static HandFrame of(long t, float[] x, float[] y,
+                               float minX, float minY, float maxX, float maxY) {
+        check(x, y);
+        return new HandFrame(t, true, x, y, minX, minY, maxX, maxY);
+    }
+
     public float boxHeight() { return present ? boxMaxY - boxMinY : 0f; }
+
+    private static void check(float[] x, float[] y) {
+        if (x == null || y == null || x.length < N || y.length < N) {
+            throw new IllegalArgumentException("need 21 landmarks");
+        }
+    }
 }

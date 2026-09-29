@@ -61,6 +61,8 @@ import java.util.concurrent.Executors;
  *     -> throttle: at most 15 fps with a hand in the last two seconds, else 5
  *     -> presence gate: a 40x30 luma difference; with no hand recently and
  *        nothing moving, the frame stops here and the landmarker stays idle
+ *     -> low light: the same sample's mean luma switches night mode (more
+ *        exposure, a lower fps floor, a gamma lift, a scaled motion gate)
  *     -> rotate upright and mirror into the driver's frame (one place, below)
  *     -> MediaPipe HandLandmarker, LIVE_STREAM, one hand, GPU else CPU
  *     -> GestureEngine -> listener (sender and HUD)
@@ -77,7 +79,7 @@ final class Pipeline implements LifecycleOwner {
 
     interface Listener {
         void onCommand(Cmd c);
-        void onRotation(boolean active, double progress);
+        void onTilt(boolean active, double progress);
     }
 
     static final long HAND_INTERVAL_MS = 66;   // about 15 fps, never more
@@ -223,6 +225,8 @@ final class Pipeline implements LifecycleOwner {
         firstRunPending = true;
         gateOn = true;
         havePrevLuma = false;
+        appliedRange = null;
+        appliedEv = null;
         // The model loads off the main thread; the camera binds once it is ready.
         exec.execute(new Runnable() { @Override public void run() {
             HandLandmarker lm = createLandmarker();
@@ -300,11 +304,16 @@ final class Pipeline implements LifecycleOwner {
                         .setResolutionSelector(rs)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .setTargetRotation(displayRot);
-                Range<Integer> fps = pickFpsRange();
+                Range<Integer>[] ranges = aeRanges();
+                Range<Integer> fps = pickFpsRange(ranges);
+                dayRange = fps;
+                nightRange = pickNightRange(ranges, fps);
+                Camera2Interop.Extender<ImageAnalysis> ext = new Camera2Interop.Extender<>(b);
                 if (fps != null) {
-                    new Camera2Interop.Extender<>(b).setCaptureRequestOption(
-                            CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+                    ext.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
                 }
+                // Reports what the camera actually applied, not what was asked.
+                ext.setSessionCaptureCallback(appliedWatcher);
                 analysis = b.build();
                 boundRotation = displayRot;
                 analysis.setAnalyzer(exec, new ImageAnalysis.Analyzer() {
@@ -320,6 +329,15 @@ final class Pipeline implements LifecycleOwner {
                         + camera.getCameraInfo().getSensorRotationDegrees(Surface.ROTATION_0)
                         + ", display rotation " + (displayRot * 90)
                         + ", fps range " + (fps == null ? "default" : fps.toString()));
+                androidx.camera.core.ExposureState es = camera.getCameraInfo().getExposureState();
+                Wave.log("camera: exposure compensation "
+                        + (es.isExposureCompensationSupported()
+                            ? "range " + es.getExposureCompensationRange() + " index, step "
+                                + es.getExposureCompensationStep() + " EV"
+                            : "not supported")
+                        + "; AE fps ranges " + java.util.Arrays.toString(ranges)
+                        + "; night range " + (nightRange == null ? "none lower than day" : nightRange));
+                if (night) applyLight(); // a rebind while dark keeps night settings
                 Wave.serviceState = "running";
                 lastFrameMs = SystemClock.uptimeMillis();
             } catch (Throwable t) {
@@ -343,31 +361,78 @@ final class Pipeline implements LifecycleOwner {
         }
     };
 
-    /** The lowest-ceiling AE range that still reaches 15 fps. */
-    private Range<Integer> pickFpsRange() {
+    /** The front camera's available AE target fps ranges, or null. */
+    @SuppressWarnings("unchecked")
+    private Range<Integer>[] aeRanges() {
         try {
             CameraManager cm = ctx.getSystemService(CameraManager.class);
             for (String id : cm.getCameraIdList()) {
                 CameraCharacteristics ch = cm.getCameraCharacteristics(id);
                 Integer facing = ch.get(CameraCharacteristics.LENS_FACING);
                 if (facing == null || facing != CameraCharacteristics.LENS_FACING_FRONT) continue;
-                Range<Integer>[] ranges = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-                if (ranges == null) return null;
-                Range<Integer> best = null;
-                for (Range<Integer> r : ranges) {
-                    if (r.getUpper() < 15) continue;
-                    if (best == null || r.getUpper() < best.getUpper()
-                            || (r.getUpper().equals(best.getUpper()) && r.getLower() < best.getLower())) {
-                        best = r;
-                    }
-                }
-                return best;
+                return ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
             }
         } catch (Throwable t) {
             Wave.log("camera: could not read fps ranges: " + t.getMessage());
         }
         return null;
     }
+
+    /** Day: the lowest-ceiling AE range that still reaches 15 fps. */
+    private static Range<Integer> pickFpsRange(Range<Integer>[] ranges) {
+        if (ranges == null) return null;
+        Range<Integer> best = null;
+        for (Range<Integer> r : ranges) {
+            if (r.getUpper() < 15) continue;
+            if (best == null || r.getUpper() < best.getUpper()
+                    || (r.getUpper().equals(best.getUpper()) && r.getLower() < best.getLower())) {
+                best = r;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Night: [5, 15] if offered; otherwise the range with the lowest floor
+     * (then the lowest ceiling), as long as its floor is below the day range's,
+     * so auto exposure may lengthen the shutter. Null if nothing is lower.
+     */
+    private static Range<Integer> pickNightRange(Range<Integer>[] ranges, Range<Integer> day) {
+        if (ranges == null) return null;
+        Range<Integer> best = null;
+        for (Range<Integer> r : ranges) {
+            if (r.getLower() == 5 && r.getUpper() == 15) return r;
+            if (best == null || r.getLower() < best.getLower()
+                    || (r.getLower().equals(best.getLower()) && r.getUpper() < best.getUpper())) {
+                best = r;
+            }
+        }
+        if (best != null && day != null && best.getLower() >= day.getLower()) return null;
+        return best;
+    }
+
+    // What the camera actually applied, logged whenever it changes.
+    private volatile Range<Integer> appliedRange;
+    private volatile Integer appliedEv;
+
+    private final android.hardware.camera2.CameraCaptureSession.CaptureCallback appliedWatcher =
+            new android.hardware.camera2.CameraCaptureSession.CaptureCallback() {
+        @Override public void onCaptureCompleted(@NonNull android.hardware.camera2.CameraCaptureSession s,
+                @NonNull CaptureRequest req, @NonNull android.hardware.camera2.TotalCaptureResult res) {
+            Range<Integer> r = res.get(android.hardware.camera2.CaptureResult.CONTROL_AE_TARGET_FPS_RANGE);
+            Integer ev = res.get(android.hardware.camera2.CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION);
+            Long exp = res.get(android.hardware.camera2.CaptureResult.SENSOR_EXPOSURE_TIME);
+            if (exp != null) Wave.exposureMs = exp / 1_000_000f;
+            boolean changed = (r != null && !r.equals(appliedRange))
+                    || (ev != null && !ev.equals(appliedEv));
+            if (!changed) return;
+            appliedRange = r;
+            appliedEv = ev;
+            Wave.log("camera: applied AE range " + r + ", exposure compensation index " + ev
+                    + ", exposure " + (exp == null ? "?" : String.format(java.util.Locale.ROOT,
+                            "%.1f ms", exp / 1_000_000f)));
+        }
+    };
 
     private int displayRotation() {
         try {
@@ -402,16 +467,19 @@ final class Pipeline implements LifecycleOwner {
         java.nio.ByteBuffer b = p.getBuffer();
         int rs = p.getRowStride(), ps = p.getPixelStride();
         int w = image.getWidth(), h = image.getHeight();
-        long sum = 0;
+        long sum = 0, sumLuma = 0;
         for (int gy = 0; gy < GATE_H; gy++) {
             int row = ((2 * gy + 1) * h / (2 * GATE_H)) * rs;
             for (int gx = 0; gx < GATE_W; gx++) {
                 int v = b.get(row + ((2 * gx + 1) * w / (2 * GATE_W)) * ps) & 0xFF;
                 int k = gy * GATE_W + gx;
                 sum += Math.abs(v - prevLuma[k]);
+                sumLuma += v;
                 prevLuma[k] = v;
             }
         }
+        lastLuma = (int) (sumLuma / (GATE_W * GATE_H));
+        Wave.luma = lastLuma;
         if (!havePrevLuma) { havePrevLuma = true; return 0; }
         double d = sum / (double) (GATE_W * GATE_H);
         motionSum += d;
@@ -455,8 +523,14 @@ final class Pipeline implements LifecycleOwner {
             // mid-gesture), or on the first frame after a start (so a delegate
             // or model failure shows up at once, not at the first wave).
             double motion = motionDiff(image);
+            updateLight(lastLuma);
             boolean handRecent = now - lastHandMs <= HAND_RECENT_MS;
-            boolean moving = motion > tuning.motionMinDiff;
+            // In the dark, differences shrink with the signal, so the motion
+            // threshold shrinks with the scene brightness too.
+            double threshold = night
+                    ? tuning.motionMinDiff * Math.max(0.35, lastLuma / 120.0)
+                    : tuning.motionMinDiff;
+            boolean moving = motion > threshold;
             boolean first = firstRunPending;
             boolean on = first || handRecent || moving || Wave.calibrating;
             setGate(on, first ? "first frame" : handRecent ? "hand" : moving ? "motion"
@@ -501,13 +575,14 @@ final class Pipeline implements LifecycleOwner {
      */
     private Bitmap toDriverFrame(ImageProxy image) {
         int rot = image.getImageInfo().getRotationDegrees();
-        Bitmap src = image.toBitmap();
+        boolean lifted = night;
+        Bitmap src = lifted ? liftedBitmap(image) : image.toBitmap();
         Matrix m = new Matrix();
         m.postRotate(rot);
         m.postScale(-1f, 1f);
         int sw = src.getWidth(), sh = src.getHeight();
         Bitmap out = Bitmap.createBitmap(src, 0, 0, sw, sh, m, false);
-        if (out != src) src.recycle();
+        if (out != src && !lifted) src.recycle(); // the lifted source is reused
         if (rot != lastRotation) {
             lastRotation = rot;
             String t = "rotate " + rot + " clockwise then mirror horizontally, "
@@ -516,6 +591,100 @@ final class Pipeline implements LifecycleOwner {
             Wave.log("transform: " + t + " (driver frame, +x is the driver's right)");
         }
         return out;
+    }
+
+    // ---- low light ------------------------------------------------------------------
+
+    static final int DARK_HYSTERESIS = 15;
+    /** Gamma 0.5 lift for the Y plane in night mode, precomputed. */
+    private static final int[] GAMMA_LUT = new int[256];
+    static {
+        for (int i = 0; i < 256; i++) {
+            GAMMA_LUT[i] = (int) Math.round(255.0 * Math.pow(i / 255.0, 0.5));
+        }
+    }
+    private volatile boolean night = false;
+    private volatile int lastLuma = 0;
+    private int[] liftArgb;
+    private Bitmap liftBitmap;
+    private Range<Integer> dayRange, nightRange;
+
+    /** Analysis thread. Night starts under darkLuma and ends above it plus 15. */
+    private void updateLight(int luma) {
+        boolean was = night;
+        if (!night && luma < tuning.darkLuma) night = true;
+        else if (night && luma > tuning.darkLuma + DARK_HYSTERESIS) night = false;
+        Wave.night = night;
+        if (night == was) return;
+        Wave.log(night ? "light: night on, luma " + luma : "light: day, luma " + luma);
+        main.post(new Runnable() { @Override public void run() { applyLight(); } });
+    }
+
+    /**
+     * Main thread. Night: exposure compensation to the top of the device's
+     * range and an AE range with a low floor, so the shutter may stay open
+     * longer. Day: compensation 0 and the 15 fps range the camera was bound with.
+     */
+    @OptIn(markerClass = ExperimentalCamera2Interop.class)
+    private void applyLight() {
+        Camera cam = camera;
+        if (cam == null) return;
+        boolean n = night;
+        try {
+            androidx.camera.core.ExposureState es = cam.getCameraInfo().getExposureState();
+            if (es.isExposureCompensationSupported()) {
+                int idx = n ? es.getExposureCompensationRange().getUpper() : 0;
+                cam.getCameraControl().setExposureCompensationIndex(idx);
+                Wave.log("light: exposure compensation index " + idx);
+            }
+            Range<Integer> r = n ? nightRange : dayRange;
+            if (r != null) {
+                androidx.camera.camera2.interop.Camera2CameraControl.from(cam.getCameraControl())
+                        .setCaptureRequestOptions(new androidx.camera.camera2.interop.CaptureRequestOptions.Builder()
+                                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, r)
+                                .build());
+                Wave.log("light: AE target fps range " + r);
+            }
+        } catch (Throwable t) {
+            Wave.log("light: camera settings failed: " + t);
+        }
+    }
+
+    /**
+     * Night-mode conversion: the Y plane through the gamma LUT, then YUV to RGB
+     * (BT.601 full range) into one reused pixel buffer and one reused bitmap.
+     * The camera's own buffers are only read, never written.
+     */
+    private Bitmap liftedBitmap(ImageProxy image) {
+        int w = image.getWidth(), h = image.getHeight();
+        if (liftArgb == null || liftArgb.length != w * h) {
+            liftArgb = new int[w * h];
+            liftBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        }
+        ImageProxy.PlaneProxy[] pl = image.getPlanes();
+        java.nio.ByteBuffer yb = pl[0].getBuffer(), ub = pl[1].getBuffer(), vb = pl[2].getBuffer();
+        int yRs = pl[0].getRowStride(), yPs = pl[0].getPixelStride();
+        int uRs = pl[1].getRowStride(), uPs = pl[1].getPixelStride();
+        int vRs = pl[2].getRowStride(), vPs = pl[2].getPixelStride();
+        int[] out = liftArgb;
+        int i = 0;
+        for (int y = 0; y < h; y++) {
+            int yRow = y * yRs, uRow = (y >> 1) * uRs, vRow = (y >> 1) * vRs;
+            for (int x = 0; x < w; x++) {
+                int Y = GAMMA_LUT[yb.get(yRow + x * yPs) & 0xFF];
+                int U = (ub.get(uRow + (x >> 1) * uPs) & 0xFF) - 128;
+                int V = (vb.get(vRow + (x >> 1) * vPs) & 0xFF) - 128;
+                int r = Y + ((1436 * V) >> 10);
+                int g = Y - ((352 * U + 731 * V) >> 10);
+                int b = Y + ((1815 * U) >> 10);
+                r = r < 0 ? 0 : (r > 255 ? 255 : r);
+                g = g < 0 ? 0 : (g > 255 ? 255 : g);
+                b = b < 0 ? 0 : (b > 255 ? 255 : b);
+                out[i++] = 0xFF000000 | (r << 16) | (g << 8) | b;
+            }
+        }
+        liftBitmap.setPixels(out, 0, w, 0, 0, w, h);
+        return liftBitmap;
     }
 
     private void snap(Bitmap frame) {
@@ -567,11 +736,11 @@ final class Pipeline implements LifecycleOwner {
         synchronized (engine) {
             cmds = engine.onFrame(f);
             Wave.engineLine = engine.debugLine();
-            rot = engine.rotating();
-            prog = engine.rotationProgress();
+            rot = engine.tilting();
+            prog = engine.tiltProgress();
         }
         for (Cmd c : cmds) listener.onCommand(c);
-        listener.onRotation(rot, prog);
+        listener.onTilt(rot, prog);
     }
 
     /** MediaPipe error thread. */
@@ -606,8 +775,9 @@ final class Pipeline implements LifecycleOwner {
         Wave.handPct = pct;
         if (camera != null) {
             Wave.log(String.format(java.util.Locale.ROOT,
-                    "stats: analysed=%d fps=%.1f infer_ms=%d hand=%d%% gate=%s motion=%.1f/%.1f",
-                    a, fps, inferMs, pct, gateOn ? "on" : "off", mAvg, mMax));
+                    "stats: analysed=%d fps=%.1f infer_ms=%d hand=%d%% gate=%s motion=%.1f/%.1f light=%s luma=%d",
+                    a, fps, inferMs, pct, gateOn ? "on" : "off", mAvg, mMax,
+                    night ? "night" : "day", lastLuma));
             // Healthy means frames are flowing; with the gate off the
             // landmarker may legitimately analyse nothing.
             if (cf > 0) backoff = BACKOFF_MIN_MS;
@@ -650,7 +820,7 @@ final class Pipeline implements LifecycleOwner {
         Wave.handPresent = false;
         Wave.cameraInfo = "closed";
         Wave.calibLandmarks = null;
-        listener.onRotation(false, 0);
+        listener.onTilt(false, 0);
     }
 
     void destroy() {
