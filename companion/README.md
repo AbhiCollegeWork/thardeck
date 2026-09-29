@@ -1,7 +1,8 @@
 # Thar Deck companion app
 
 A small Android app that presses one button for you: Android Auto's head unit
-server toggle, keyed to the car's Bluetooth.
+server toggle, keyed to the car's Bluetooth. It also carries Thar Deck Wave's
+gesture commands to the phone's music; see "Media relay" below.
 
 ## Why this exists
 
@@ -77,7 +78,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Install   # also adb install
 ```
 
 The pipeline is aapt2 compile, aapt2 link, javac, d8, add the dex, zipalign,
-apksigner. It produces a signed debug APK of about 25 KB.
+apksigner. It produces a signed debug APK of about 29 KB.
 
 ## Install and set up
 
@@ -112,7 +113,59 @@ adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardec
 adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardeck.STOP
 adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardeck.TOGGLE
 adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardeck.SET_CAR --es name "'Auto 12'"
+adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardeck.SET_TOKEN --es token <value>
 ```
+
+## Media relay
+
+Thar Deck Wave, the hand-gesture app on the dashboard tablet, controls music
+that plays from this phone, so its commands are relayed here. The foreground
+service listens on UDP port 5299 for one ASCII line per datagram:
+
+```
+TD1 <token> <CMD>      CMD: PING, VOL_UP, VOL_DOWN, PLAY_PAUSE, NEXT, PREV
+```
+
+- `VOL_UP` and `VOL_DOWN` step the phone's music volume, with the system volume
+  panel shown.
+- `PLAY_PAUSE`, `NEXT` and `PREV` are sent as media key presses to whichever
+  media session is active.
+- `PING` is answered to the sender with `TD1 PONG <phone model>`, which is how
+  the tablet finds the phone, by its gateway address on the phone's hotspot or
+  by subnet broadcast on other Wi-Fi.
+- A wrong token or a malformed line is dropped without a reply.
+- If a network change breaks the socket, the relay closes it, waits a second
+  and binds again.
+
+The relay runs whenever the service runs. The pause switch covers the car
+watcher only. Each applied command is logged at tag `THARDECK` as
+`relay: <CMD> from <sender>`; the token is never logged. The status screen and
+the notification show the relay state.
+
+The token defaults to `thardeck`, the same default as the Wave app. Change it
+on both sides together:
+
+```bash
+adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardeck.SET_TOKEN --es token <value>
+```
+
+A token must be a single word of printable ASCII, because the protocol is space
+separated.
+
+Verified on the build phone (model SM-S938B) over Wi-Fi, with UDP
+datagrams sent by a Python script on a PC on the same subnet:
+
+| Case | Result |
+|---|---|
+| Service start | log `relay: listening on 5299`; the notification reads "relay listening on 5299" |
+| `VOL_UP` | STREAM_MUSIC 6 to 7 of 15 (`cmd media_session volume --stream 3 --get`), log `relay: VOL_UP from <pc>` |
+| `VOL_DOWN` | STREAM_MUSIC 7 to 6 of 15, log `relay: VOL_DOWN from <pc>` |
+| `PING` | `TD1 PONG SM-S938B` received on the sending socket from port 5299, within the 2 s timeout |
+| `PLAY_PAUSE` | log line written; no media session was active beforehand, and Android routed the key to the last media app, which started playing. A second `PLAY_PAUSE` paused it |
+| Wrong token, `VOL_UP` | no reply, volume unchanged at 6, no log line, status screen "Relay datagrams dropped: 1" |
+
+Not yet verified: `NEXT` and `PREV`, broadcast discovery, the phone's own
+hotspot, and the reopen after a real network change.
 
 ## Verified
 
@@ -127,6 +180,14 @@ the exact code path the Bluetooth trigger uses:
 
 The Bluetooth trigger itself is confirmed on a drive, since it needs the car's
 audio to connect and disconnect for real.
+
+Fix after the first drive: a deferred stop right after unlock clicked "More
+options" seven times in 700 ms because the popup had not reached the tree yet,
+and each click closed the last. The tapper now searches every Android Auto
+window, waits 800 ms between overflow clicks, caps them at 3 per action, and
+the service relaunches settings once if the tapper has not acted after 3 s.
+This build installs and the tapper connects; the stop and start taps have not
+yet been re-run on it, because the phone was locked at test time.
 
 ## Limitations
 

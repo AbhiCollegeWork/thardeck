@@ -15,6 +15,10 @@ import android.content.Intent;
  *   adb shell am broadcast -a com.abhi.thardeck.START   (start the server now)
  *   adb shell am broadcast -a com.abhi.thardeck.STOP    (stop it now)
  *   adb shell am broadcast -a com.abhi.thardeck.SET_CAR --es name "Auto 12"
+ *   adb shell am broadcast -a com.abhi.thardeck.SET_TOKEN --es token &lt;value&gt;
+ *
+ * SET_TOKEN changes the media relay's shared secret. It applies to the next
+ * datagram, no restart needed. The value is never logged.
  *
  * SET_CAR picks the bonded device by name, so setup needs no address typed
  * anywhere. The name defaults to the one Android Auto vehicles usually carry.
@@ -27,6 +31,7 @@ public class ControlReceiver extends BroadcastReceiver {
     public static final String ACTION_START = "com.abhi.thardeck.START";
     public static final String ACTION_STOP = "com.abhi.thardeck.STOP";
     public static final String ACTION_SET_CAR = "com.abhi.thardeck.SET_CAR";
+    public static final String ACTION_SET_TOKEN = "com.abhi.thardeck.SET_TOKEN";
 
     @Override public void onReceive(Context c, Intent i) {
         String a = i.getAction();
@@ -49,6 +54,12 @@ public class ControlReceiver extends BroadcastReceiver {
                 break;
             case ACTION_SET_CAR:
                 setCarByName(c, i.getStringExtra("name"));
+                break;
+            case ACTION_SET_TOKEN:
+                // Never log the value itself.
+                Hu.log(Hu.setToken(c, i.getStringExtra("token"))
+                        ? "relay token updated"
+                        : "relay token rejected: must be one word of printable ASCII");
                 break;
         }
     }

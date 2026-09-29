@@ -1,0 +1,88 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.abhi.thardeck.wave'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+
+    defaultConfig {
+        applicationId 'com.abhi.thardeck.wave'
+        minSdk 31
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+        // The tablet is arm64. MediaPipe ships native code for four ABIs; keeping
+        // one takes the APK from about 63 MB to about a third of that.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The model is memory mapped by MediaPipe; keep it uncompressed in the APK.
+    androidResources {
+        noCompress 'task'
+    }
+
+    testOptions {
+        unitTests.all {
+            testLogging {
+                events 'passed', 'failed', 'skipped'
+                exceptionFormat 'full'
+                showStandardStreams true
+            }
+        }
+    }
+}
+
+dependencies {
+    def camerax = '1.4.2'
+    implementation "androidx.camera:camera-camera2:$camerax"
+    implementation "androidx.camera:camera-lifecycle:$camerax"
+    implementation 'com.google.mediapipe:tasks-vision:0.10.21'
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// ---- hand model ----------------------------------------------------------------
+// MediaPipe Hand Landmarker model (Google, Apache 2.0). Not committed: fetched on
+// the first build into assets/, and gitignored.
+
+def handModelUrl = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+def handModelFile = file('src/main/assets/hand_landmarker.task')
+
+tasks.register('downloadHandModel') {
+    description = 'Downloads the MediaPipe hand landmarker model into assets if missing.'
+    outputs.file(handModelFile)
+    onlyIf { !handModelFile.exists() }
+    doLast {
+        handModelFile.parentFile.mkdirs()
+        def part = new File(handModelFile.path + '.part')
+        logger.lifecycle("Downloading hand model from ${handModelUrl}")
+        new URL(handModelUrl).withInputStream { input ->
+            part.withOutputStream { out -> out << input }
+        }
+        if (part.length() < 1_000_000) {
+            part.delete()
+            throw new GradleException("Hand model download looks truncated (${part.length()} bytes)")
+        }
+        if (!part.renameTo(handModelFile)) {
+            throw new GradleException("Could not move ${part} to ${handModelFile}")
+        }
+        logger.lifecycle("Hand model saved, ${handModelFile.length()} bytes")
+    }
+}
+
+tasks.named('preBuild') { dependsOn 'downloadHandModel' }

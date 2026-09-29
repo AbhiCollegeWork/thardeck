@@ -54,10 +54,22 @@ public class ServerService extends Service {
     static final long DISCONNECT_DEBOUNCE_MS = 30_000;
     /** How long the tapper may act after we arm it. */
     static final long ARM_WINDOW_MS = 40_000;
+    /** If the tapper has not opened the overflow this long after arming,
+     *  Android Auto's settings did not come to the front; launch them again. */
+    static final long RELAUNCH_CHECK_MS = 3_000;
 
     final Handler h = new Handler(Looper.getMainLooper());
-    Runnable pendingConnect, pendingDisconnect;
+    Runnable pendingConnect, pendingDisconnect, relaunchCheck;
     boolean deferredStop = false;
+
+    /** Carries Wave's gestures from the tablet to this phone's music. */
+    MediaRelay relay;
+    /** The relay thread asks for a notification refresh through this. */
+    final Runnable relayChanged = new Runnable() {
+        @Override public void run() {
+            h.post(new Runnable() { @Override public void run() { refresh(); } });
+        }
+    };
 
     // ---- Bluetooth ----------------------------------------------------------
 
@@ -118,6 +130,7 @@ public class ServerService extends Service {
             Hu.log("unlocked, ensuring server started");
             Hu.arm(Hu.Intent2.START, ARM_WINDOW_MS);
             launchSettings();
+            scheduleRelaunchCheck();
         } else {
             Hu.log("locked, posting one-tap start");
             postAction("Tap to start Android Auto", "In the car. One tap starts the head unit server.",
@@ -134,6 +147,7 @@ public class ServerService extends Service {
             Hu.log("unlocked, ensuring server stopped");
             Hu.arm(Hu.Intent2.STOP, ARM_WINDOW_MS);
             launchSettings();
+            scheduleRelaunchCheck();
         } else if (defer) {
             deferredStop = true;
             Hu.log("locked, deferring stop to next unlock");
@@ -151,6 +165,20 @@ public class ServerService extends Service {
         } catch (Throwable t) {
             Hu.log("launch settings failed: " + t);
         }
+    }
+
+    /** One-shot: right after an unlock, the settings launch can lose the race
+     *  to the launcher, so the tapper never sees Android Auto. */
+    void scheduleRelaunchCheck() {
+        cancel(relaunchCheck);
+        relaunchCheck = new Runnable() { @Override public void run() {
+            relaunchCheck = null;
+            if (Hu.armActive() && Hu.overflowClicks == 0) {
+                Hu.log("settings not in front, relaunching");
+                launchSettings();
+            }
+        }};
+        h.postDelayed(relaunchCheck, RELAUNCH_CHECK_MS);
     }
     // The tapper reads Android Auto's own menu to confirm the state changed and
     // then returns to the home screen itself, so there is no port check here.
@@ -201,6 +229,8 @@ public class ServerService extends Service {
         IntentFilter wf = new IntentFilter(Intent.ACTION_USER_PRESENT);
         wf.addAction(Intent.ACTION_SCREEN_ON);
         registerReceiver(wake, wf);
+        relay = new MediaRelay(this, relayChanged);
+        relay.start();
         Hu.log("ServerService up");
     }
 
@@ -223,9 +253,14 @@ public class ServerService extends Service {
                 new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        // The pause switch covers the car watcher only; the relay keeps
+        // listening, so its state leads the text either way.
+        String text = "relay " + Hu.relayState + ". "
+                + (on ? Hu.lastResult : "Not watching for the car.");
         return new Notification.Builder(this, "thardeck")
                 .setContentTitle(on ? "Watching for " + car : "Thar Deck paused")
-                .setContentText(on ? Hu.lastResult : "Not watching. The phone behaves normally.")
+                .setContentText(text)
+                .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setSmallIcon(R.drawable.ic_status)
                 .setContentIntent(open)
                 .addAction(new Notification.Action.Builder(
@@ -259,7 +294,8 @@ public class ServerService extends Service {
         super.onDestroy();
         try { unregisterReceiver(bt); } catch (Throwable ignored) {}
         try { unregisterReceiver(wake); } catch (Throwable ignored) {}
-        cancel(pendingConnect); cancel(pendingDisconnect);
+        cancel(pendingConnect); cancel(pendingDisconnect); cancel(relaunchCheck);
+        if (relay != null) { relay.stop(); relay = null; }
         Hu.log("ServerService down");
     }
 

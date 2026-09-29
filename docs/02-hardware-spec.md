@@ -37,6 +37,8 @@ Every component in the reference build, with the numbers that were actually meas
 |---|---|---|
 | Open Headunit (tablet receiver) | 3.3.0 | [github.com/andreknieriem/open-headunit](https://github.com/andreknieriem/open-headunit) |
 | Android Auto (phone) | 17.4, **auto-update disabled** | Play Store |
+| Thar Deck companion (phone) | 1.0 | [`companion/`](../companion/README.md), head unit server switch and media relay |
+| Thar Deck Wave (tablet) | 1.0 | [`wave/`](../wave/README.md), camera gesture control, uses MediaPipe Hand Landmarker (Google, Apache 2.0) |
 
 **No helper app.** Earlier versions of this build used AA Wireless Helper 1.9.3 on the phone. Android Auto 17.3 removed the connection intent it depended on, so it can no longer complete a connection and has been removed. A/B tested before removal: connect time, reconnect time and frame rate were identical with and without it. See [Troubleshooting section 13](07-troubleshooting.md#13-nothing-connects-after-an-android-auto-update).
 

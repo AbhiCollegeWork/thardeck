@@ -158,7 +158,10 @@ public class MainActivity extends Activity {
               + "Car device: " + Hu.carName(this) + "\n"
               + "Server (last known): " + Hu.lastKnownState + "\n"
               + "Accessibility service: " + (acc ? "on" : "OFF, tap below") + "\n"
-              + "Last action: " + Hu.lastResult);
+              + "Last action: " + Hu.lastResult + "\n"
+              + "Media relay: " + Hu.relayState + "\n"
+              + "Last relay command: " + Hu.relayLast
+              + (Hu.relayDropped > 0 ? "\nRelay datagrams dropped: " + Hu.relayDropped : ""));
     }
 
     private boolean accessibilityOn() {

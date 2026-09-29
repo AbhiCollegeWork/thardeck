@@ -47,17 +47,31 @@ public final class Hu {
     /** Human-readable outcome of the last action, for the status screen. */
     public static volatile String lastResult = "nothing yet";
 
+    /** Times the tapper has clicked "More options" in the current arm. Zero a
+     *  few seconds after arming means Android Auto's settings never came to
+     *  the front, so ServerService relaunches them once. */
+    public static volatile int overflowClicks = 0;
+
     public static void arm(Intent2 what, long forMs) {
+        overflowClicks = 0;
         armed = what;
         armWindowUntil = System.currentTimeMillis() + forMs;
     }
     public static void disarm() {
         armed = Intent2.NONE;
         armWindowUntil = 0;
+        overflowClicks = 0;
     }
     public static boolean armActive() {
         return armed != Intent2.NONE && System.currentTimeMillis() <= armWindowUntil;
     }
+
+    /** Media relay state for the status screen and notification. */
+    public static volatile String relayState = "not started";
+    /** Last command the relay applied, with its time. */
+    public static volatile String relayLast = "none yet";
+    /** Datagrams dropped for a bad token or a malformed line. */
+    public static volatile int relayDropped = 0;
 
     public static void log(String s) { Log.i(TAG, s); }
 
@@ -75,7 +89,8 @@ public final class Hu {
     /**
      * Master switch. Off means the app watches nothing and touches nothing, so
      * the phone behaves exactly as a stock phone. Useful when lending the car,
-     * or debugging, without uninstalling.
+     * or debugging, without uninstalling. It covers the car watcher only; the
+     * media relay keeps listening while the service runs.
      */
     public static boolean isEnabled(Context c) {
         try { return p(c).getBoolean(KEY_ENABLED, true); }
@@ -99,6 +114,23 @@ public final class Hu {
     public static void setCar(Context c, String addr, String name) {
         try { p(c).edit().putString(KEY_ADDR, addr).putString(KEY_NAME, name).apply(); }
         catch (Throwable ignored) {}
+    }
+
+    /** Shared secret the tablet must send in every relay datagram. The default
+     *  matches the Wave app's default; change both sides together. */
+    public static final String DEFAULT_TOKEN = "thardeck";
+    private static final String KEY_TOKEN = "relay_token";
+
+    public static String token(Context c) {
+        try { return p(c).getString(KEY_TOKEN, DEFAULT_TOKEN); }
+        catch (Throwable t) { return DEFAULT_TOKEN; }
+    }
+    /** The protocol is space separated ASCII, so a token must be one non-empty
+     *  word of printable ASCII. @return true if stored. */
+    public static boolean setToken(Context c, String token) {
+        if (token == null || !token.matches("[\\x21-\\x7e]+")) return false;
+        try { p(c).edit().putString(KEY_TOKEN, token).apply(); return true; }
+        catch (Throwable t) { return false; }
     }
 
     public static boolean isCar(Context c, BluetoothDevice d) {

@@ -1,0 +1,8 @@
+*.task
+*.task.part
+build/
+.gradle/
+*.apk
+local.properties
+.idea/
+*.iml

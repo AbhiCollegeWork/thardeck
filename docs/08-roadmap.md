@@ -2,7 +2,7 @@
 
 Where this goes next. The current build is a display; the interesting question is what else a permanently-mounted, powered Android device in a car is good for.
 
-> Everything below is **planned, not built.** Nothing here has been implemented or validated. Treat design sketches as hypotheses.
+> Everything below is **planned, not built**, except the section "Done since this roadmap was written", which records what has since shipped and exactly how far each item has been verified. Treat design sketches as hypotheses.
 
 ---
 
@@ -105,10 +105,35 @@ The tap is done by an accessibility service scoped to Android Auto's package
 alone, and the app reads Android Auto's own menu label to know the state. Source
 and full notes are in [`companion/`](../companion/README.md).
 
+**First drive of the companion app (13 Sep):** the Bluetooth trigger fired and
+the one-tap start was used, so the wiring is confirmed. The deferred stop after
+the drive thrashed the settings menu on unlock and never finished; fixed since
+(overflow click gap and cap, all Android Auto windows searched, one relaunch).
+That fix has not yet been exercised on a drive.
+
 **Still open on top of it:** it runs in notification mode, so behind a secure
 lock screen it posts a one-tap start rather than acting silently. Native mode
 (see [Troubleshooting section 15](07-troubleshooting.md#15-projection-starts-when-you-are-not-driving))
 remains the only route that would remove the developer-mode server entirely.
+
+### Gesture control of the music (Wave)
+Built and bench-verified. A second app on the tablet watches the front camera
+with MediaPipe hand tracking (Google, Apache 2.0) and turns three gestures into
+media commands: index finger circling clockwise or anticlockwise for volume,
+like a rotary knob; an open-hand swipe left or right for previous and next; a
+fist held for half a second for play or pause. Because the music never touches
+the tablet (it is A2DP from the phone to the car), the tablet relays each
+command over UDP to the phone's companion app, which applies it to the phone's
+media volume and media keys. On the hotspot the phone is the tablet's gateway,
+so discovery needs no setup.
+
+Bench-verified end to end: a simulated volume step on the tablet moved the
+phone's media volume up one step and back down, with the relay acknowledging
+each. The gesture engine is pure Java with unit tests for every gesture. What
+is **not** verified yet: a real hand (the thresholds are design defaults until
+a calibration session), the acceptance rule that the receiver keeps
+`dropped=0, skipped=0` with a hand in view (needs the receiver projecting), and
+the whole thing in a moving car. Source and notes in [`wave/`](../wave/README.md).
 
 ## Further out
 

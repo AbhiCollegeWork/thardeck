@@ -13,9 +13,49 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 
 ### Pending validation
 - Record-while-projecting feasibility for the planned dash cam is unmeasured
-- The 3.3.0 corruption fix is bench-verified but has not yet run a full drive
-- Projection can currently start outside the car; gating is designed but not implemented, see TD-007 section 15
-- Native mode would remove the head unit server entirely and gate on the car's Bluetooth, solving both the manual start and the false-trigger problem. Not attempted: it needs a Bluetooth restart and re-pair.
+- Wave with a real hand: thresholds are design defaults until a calibration session
+- Wave's acceptance rule, receiver `dropped=0, skipped=0` with a hand in view, needs the receiver projecting
+- The companion's deferred-stop fix has not yet run on a drive
+- Native mode remains the only route that would remove the developer-mode server entirely
+
+## [1.5.0] - 2026-09-29
+
+Two apps. The system now presses its own buttons and takes hand gestures.
+
+### Added
+- **`companion/`, phone app.** Presses Android Auto's head unit server toggle
+  keyed to the car's Bluetooth: server up when the car connects, down when it
+  leaves, so a later desk tether has nothing to connect to. The tap is an
+  accessibility service scoped to Android Auto's package alone; it reads Android
+  Auto's own menu label as the state signal, because cross-UID loopback to 5277
+  is dropped on this phone even from a shell. Notification mode behind a secure
+  lock screen. Now also carries a UDP media relay on port 5299 for Wave.
+- **`wave/`, tablet app.** Camera hand-gesture control of the music: index
+  finger circling for volume like a rotary knob, open-hand swipe for previous
+  and next, fist hold for play or pause. MediaPipe Hand Landmarker (Google,
+  Apache 2.0) on the front camera at 320x240, 5 fps idle and 15 fps with a hand,
+  an overlay HUD over the receiver, a pure-Java gesture engine with unit tests,
+  and a relay to the phone because the music never touches the tablet.
+- TD-002 lists both apps; TD-008 records both under "Done since this roadmap
+  was written" with exactly what is and is not verified.
+
+### Verified
+- Companion, phone unlocked: stop closes 5277 in about 2 s, start opens it in
+  about 2 s, a redundant start no-ops as "already running".
+- Companion, first drive (13 Sep): the Bluetooth trigger fired and the one-tap
+  start was used. The deferred stop after the drive thrashed the settings menu
+  on unlock and never finished; fixed (overflow click gap and cap, every
+  Android Auto window searched, one relaunch), not yet driven.
+- Relay, live on the phone over Wi-Fi: volume 6 to 7 to 6, PING answered,
+  play/pause reached the last media app, wrong token dropped.
+- Wave, on the tablet: camera at 320x240 with the GPU delegate, unit tests
+  9 of 9, a simulated volume step from the tablet moved the phone's media
+  volume up and back down with the relay acknowledging each. Thermal status 0.
+
+### Measured
+- Android Auto's `:car` process, which hosts the head unit server, was killed
+  eight times on 12 Sep alone, mostly as a cached process. The server can vanish
+  several times a day; the v1.3.0 "once per reboot" claim was wrong.
 
 ## [1.4.0] - 2026-09-04
 

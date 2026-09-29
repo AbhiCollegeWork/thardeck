@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.camera.front" android:required="true" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- UDP to the phone's media relay. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Default gateway and subnet for discovery, and Wi-Fi change callbacks. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The HUD is drawn over the receiver app; also what lets the boot receiver
+         bring MainActivity up from the background. Granted by adb appops. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".GestureService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Simulation hook: pushes a command straight to the sender and the
+             HUD, no hand needed. The adb command is in the README. -->
+        <receiver
+            android:name=".SimReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.abhi.thardeck.wave.SIM" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
