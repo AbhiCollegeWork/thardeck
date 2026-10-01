@@ -43,6 +43,7 @@ public class GestureService extends Service {
 
     @Override public void onCreate() {
         super.onCreate();
+        EventLog.init(this);
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel(
                 CHANNEL, "Gesture control", NotificationManager.IMPORTANCE_LOW));
@@ -53,6 +54,9 @@ public class GestureService extends Service {
         sender.start();
         pipeline = new Pipeline(this, new Pipeline.Listener() {
             @Override public void onCommand(Cmd c) { command(c, "gesture"); }
+            @Override public void onEngineState(long listeningUntil, float palmProgress) {
+                hud.engineState(listeningUntil, palmProgress);
+            }
         });
         Wave.service = this;
         registerNetwork();
@@ -87,6 +91,9 @@ public class GestureService extends Service {
     void simulate(Cmd c) { command(c, "sim"); }
 
     void rediscover(String why) { sender.rediscover(why); }
+
+    /** Shows each HUD state in turn; display only. */
+    void hudPreview() { hud.preview(); }
 
     // ---- pause and resume -----------------------------------------------------
 

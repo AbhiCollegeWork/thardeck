@@ -137,7 +137,14 @@ minute, `dropped=0` in every window and 22 skipped frames in total, about
 0.7 percent. The gesture engine is pure Java with 30 unit tests. The gesture
 set was redesigned after that session from a video of the owner's own hand:
 the fingertip circle and the fist were replaced by vertical strokes and the
-palm hold. Every rotation tried in between (a forearm roll, measured three
+palm hold. After the first drive (many false play/pauses, no volume, few
+swipes) the engine gained a **deliberate entry gate**: it listens only for a
+few seconds after a hand enters the camera's view, and a hand that merely
+lingers goes dormant until it leaves. The palm must now be close, flat to the
+camera and held for 0.8 s with a filling ring on the display; strokes are
+tracked from the hand's first frame; swipes cannot fire from the hand leaving
+the picture. The tablet now keeps its own drive log, because the first drive
+could not be analysed afterwards. Every rotation tried in between (a forearm roll, measured three
 ways, and an in-plane tilt) was rejected: the roll because the tracker loses
 the hand when it turns edge-on, the tilt because it still confused the driver.
 The stroke rule was fitted to a second video and reproduces the owner's own

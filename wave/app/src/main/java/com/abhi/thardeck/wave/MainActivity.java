@@ -77,6 +77,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        EventLog.init(this);
         Wave.tuning(this);
         buildUi();
         handleExtras(getIntent());

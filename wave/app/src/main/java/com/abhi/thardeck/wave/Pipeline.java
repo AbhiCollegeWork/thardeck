@@ -79,6 +79,9 @@ final class Pipeline implements LifecycleOwner {
 
     interface Listener {
         void onCommand(Cmd c);
+        /** Every analysed frame: listening window end (uptime ms) and palm
+         *  hold progress 0..1, for the HUD. */
+        void onEngineState(long listeningUntil, float palmProgress);
     }
 
     static final long HAND_INTERVAL_MS = 66;   // about 15 fps, never more
@@ -730,12 +733,17 @@ final class Pipeline implements LifecycleOwner {
         }
 
         List<Cmd> cmds;
+        long listenUntil;
+        float palm;
         synchronized (engine) {
             cmds = engine.onFrame(f);
             Wave.engineLine = engine.debugLine();
+            listenUntil = engine.listeningUntil();
+            palm = (float) engine.palmProgress();
         }
         synchronized (trail) { updateTrail(f, now, cmds); }
         for (Cmd c : cmds) listener.onCommand(c);
+        listener.onEngineState(listenUntil, palm);
     }
 
     // ---- calibrate view trail -------------------------------------------------------

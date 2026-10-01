@@ -37,6 +37,9 @@ public class TuningTest {
 
     @Test public void calibrationDefaults() {
         Tuning t = new Tuning();
+        assertEquals(800, t.entryAbsentMs, 1e-9);
+        assertEquals(3000, t.entryWindowMs, 1e-9);
+        assertEquals(1500, t.entryExtendMs, 1e-9);
         assertEquals(0.18, t.minBoxHeight, 1e-9);
         assertEquals(0.13, t.minBoxHeightHold, 1e-9);
         assertEquals(100, t.armMs, 1e-9);
@@ -47,11 +50,15 @@ public class TuningTest {
         assertEquals(0.08, t.strokeMinTravel, 1e-9);
         assertEquals(1.5, t.strokeVerticalRatio, 1e-9);
         assertEquals(300, t.strokeRefractoryMs, 1e-9);
+        assertEquals(0.55, t.strokeMaxBox, 1e-9);
         assertEquals(0.14, t.swipeMinDx, 1e-9);
         assertEquals(450, t.swipeWindowMs, 1e-9);
-        assertEquals(0.6, t.swipeMaxDyRatio, 1e-9);
+        assertEquals(0.5, t.swipeMaxDyRatio, 1e-9);
+        assertEquals(150, t.swipeMinPresentMs, 1e-9);
         assertEquals(600, t.swipeCooldownMs, 1e-9);
-        assertEquals(600, t.palmHoldMs, 1e-9);
+        assertEquals(800, t.palmHoldMs, 1e-9);
+        assertEquals(0.30, t.palmMinBox, 1e-9);
+        assertEquals(0.45, t.palmMinWidth, 1e-9);
         assertEquals(0.04, t.palmMaxTravel, 1e-9);
         assertEquals(300, t.palmReleaseMs, 1e-9);
         assertEquals(1500, t.palmUnlatchAbsentMs, 1e-9);
@@ -66,13 +73,15 @@ public class TuningTest {
         assertFalse(t.strokeInvert);
     }
 
-    /** The circle, fist, roll and tilt recognisers are gone, keys and all. */
+    /** The circle, fist, roll and tilt recognisers, and the settled-start
+     *  rule for swipes, are gone, keys and all. */
     @Test public void retiredKeysAreGone() {
         for (String k : new String[]{"rotWindowMs", "rotStepDeg", "rotMinAspect",
                 "fistHoldMs", "fistMaxTravel", "fistUnlatchAbsentMs",
                 "rollWindowMs", "rollStepDeg", "rollMaxTravel", "palmMaxRollDeg",
                 "tiltWindowMs", "tiltStepDeg", "tiltMaxTravel", "tiltMinDeltaDeg",
-                "tiltMaxDeltaDeg", "tiltMaxStepsPerSec", "tiltReleaseMs", "palmMaxTiltDeg"}) {
+                "tiltMaxDeltaDeg", "tiltMaxStepsPerSec", "tiltReleaseMs", "palmMaxTiltDeg",
+                "swipeSettleMs", "swipeSettleTravel", "swipeSettleWindowMs"}) {
             assertFalse(k, Tuning.isKey(k));
         }
     }

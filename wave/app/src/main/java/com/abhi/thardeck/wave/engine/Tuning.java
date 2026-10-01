@@ -13,6 +13,16 @@ package com.abhi.thardeck.wave.engine;
  */
 public final class Tuning {
 
+    // ---- deliberate entry --------------------------------------------------
+    /** A hand counts as entering when it appears after being out of view at
+     *  least this long. */
+    public volatile double entryAbsentMs = 800;
+    /** Commands may fire only within this long of an entry... */
+    public volatile double entryWindowMs = 3000;
+    /** ...extended to at least this long after each command fired. After the
+     *  window the engine is dormant until the hand leaves again. */
+    public volatile double entryExtendMs = 1500;
+
     // ---- arming ------------------------------------------------------------
     /** Hand bounding box height, as a fraction of the frame, needed to arm.
      *  Keeps a hand resting on the wheel from triggering anything. */
@@ -41,6 +51,9 @@ public final class Tuning {
     public volatile double strokeVerticalRatio = 1.5;
     /** Quiet period after a stroke before the next can fire. */
     public volatile double strokeRefractoryMs = 300;
+    /** A stroke does not fire while the hand box is bigger than this: that is
+     *  a hand reaching to touch the screen. */
+    public volatile double strokeMaxBox = 0.55;
 
     // ---- swipe (next, previous) ---------------------------------------------
     /** Horizontal travel of the hand centre needed for a swipe. */
@@ -48,13 +61,23 @@ public final class Tuning {
     /** ...within this time. */
     public volatile double swipeWindowMs = 450;
     /** Vertical travel must stay under this fraction of the horizontal. */
-    public volatile double swipeMaxDyRatio = 0.6;
+    public volatile double swipeMaxDyRatio = 0.5;
     /** Quiet period after a swipe. */
     public volatile double swipeCooldownMs = 600;
+    /** A swipe is measured only from points where the hand had already been
+     *  in view, box above minBoxHeightHold, for this long. */
+    public volatile double swipeMinPresentMs = 150;
 
     // ---- open palm hold (play, pause) -----------------------------------------
     /** How long an open palm must be held still. */
-    public volatile double palmHoldMs = 600;
+    public volatile double palmHoldMs = 800;
+    /** The palm must be this close: box height at least this. A hand on the
+     *  wheel reads smaller. */
+    public volatile double palmMinBox = 0.30;
+    /** The palm must face the camera: knuckle width (5 to 17) across the hand
+     *  axis, over the wrist to middle-knuckle length, at least this. An
+     *  edge-on or tilted-back hand reads narrower. */
+    public volatile double palmMinWidth = 0.45;
     /** Hand centre travel allowed during the hold. A palm that moves more is
      *  a stroke or a swipe, never a hold. */
     public volatile double palmMaxTravel = 0.04;
@@ -86,6 +109,9 @@ public final class Tuning {
     }
 
     public static final Param[] PARAMS = {
+        new Param("entryAbsentMs", "Entry: out of view first for ms", 200, 3000, 50),
+        new Param("entryWindowMs", "Entry: listening window ms", 500, 10000, 100),
+        new Param("entryExtendMs", "Entry: extend after a command ms", 0, 5000, 100),
         new Param("minBoxHeight", "Arm: min hand height", 0.10, 0.60, 0.01),
         new Param("minBoxHeightHold", "Arm: hold while above height", 0.05, 0.60, 0.01),
         new Param("armMs", "Arm: present for ms", 0, 600, 10),
@@ -95,11 +121,15 @@ public final class Tuning {
         new Param("strokeMinTravel", "Stroke: min vertical travel", 0.02, 0.40, 0.01),
         new Param("strokeVerticalRatio", "Stroke: vertical over horizontal", 1.0, 4.0, 0.1),
         new Param("strokeRefractoryMs", "Stroke: quiet after a stroke ms", 0, 1500, 50),
+        new Param("strokeMaxBox", "Stroke: max hand height", 0.20, 1.00, 0.01),
         new Param("swipeMinDx", "Swipe: min travel", 0.10, 0.70, 0.01),
         new Param("swipeWindowMs", "Swipe: window ms", 150, 1000, 10),
         new Param("swipeMaxDyRatio", "Swipe: max vertical ratio", 0.1, 1.0, 0.05),
         new Param("swipeCooldownMs", "Swipe: cooldown ms", 0, 2000, 50),
+        new Param("swipeMinPresentMs", "Swipe: in view first for ms", 0, 1000, 10),
         new Param("palmHoldMs", "Palm: hold ms", 200, 2000, 10),
+        new Param("palmMinBox", "Palm: min hand height", 0.10, 0.80, 0.01),
+        new Param("palmMinWidth", "Palm: min width (flat to camera)", 0.10, 1.00, 0.01),
         new Param("palmMaxTravel", "Palm: max travel", 0.01, 0.20, 0.005),
         new Param("palmReleaseMs", "Palm: re-arm after not palm ms", 50, 2000, 50),
         new Param("palmUnlatchAbsentMs", "Palm: re-arm after hand gone ms", 300, 5000, 100),
@@ -109,6 +139,13 @@ public final class Tuning {
 
     public double get(String key) {
         switch (key) {
+            case "entryAbsentMs": return entryAbsentMs;
+            case "entryWindowMs": return entryWindowMs;
+            case "entryExtendMs": return entryExtendMs;
+            case "strokeMaxBox": return strokeMaxBox;
+            case "swipeMinPresentMs": return swipeMinPresentMs;
+            case "palmMinBox": return palmMinBox;
+            case "palmMinWidth": return palmMinWidth;
             case "minBoxHeight": return minBoxHeight;
             case "minBoxHeightHold": return minBoxHeightHold;
             case "armMs": return armMs;
@@ -134,6 +171,13 @@ public final class Tuning {
 
     public void set(String key, double v) {
         switch (key) {
+            case "entryAbsentMs": entryAbsentMs = v; break;
+            case "entryWindowMs": entryWindowMs = v; break;
+            case "entryExtendMs": entryExtendMs = v; break;
+            case "strokeMaxBox": strokeMaxBox = v; break;
+            case "swipeMinPresentMs": swipeMinPresentMs = v; break;
+            case "palmMinBox": palmMinBox = v; break;
+            case "palmMinWidth": palmMinWidth = v; break;
             case "minBoxHeight": minBoxHeight = v; break;
             case "minBoxHeightHold": minBoxHeightHold = v; break;
             case "armMs": armMs = v; break;

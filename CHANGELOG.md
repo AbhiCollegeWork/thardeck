@@ -30,6 +30,20 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
 - Wave engine: size hysteresis (arm at 0.18, hold to 0.13), a 400 ms dropout
   grace and a gentler motion gate, after a live session showed the old single
   gate flapping twenty times in ten seconds and cutting gestures short.
+- **Wave, after the first drive (many false play/pauses, no volume, few
+  swipes):** a deliberate entry gate (commands only within 3 s of a hand
+  entering the view after 0.8 s absence, extended 1.5 s after each command; a
+  lingering hand goes dormant), a stricter palm hold (box at least 0.30, flat
+  to the camera, 800 ms, with a filling ring on the HUD and a listening dot
+  while the window is open), strokes tracked from the hand's first frame (the
+  arming delay had been eating the flick), a 0.55 box cap for a hand reaching
+  to touch the screen, swipes that fire one frame late and only with the hand
+  still in view, and a durable drive log on the tablet (`wave-events.log`,
+  2 MB rotation). 44 unit tests.
+- **Companion:** a durable event log on the phone (`thardeck-events.log`),
+  after the adb-spawned capture silently died and lost a drive. The tapper fix
+  was verified unlocked: stop, start, stop each in one read, one click, one
+  confirm.
 
 ### Pending validation
 - Record-while-projecting feasibility for the planned dash cam is unmeasured

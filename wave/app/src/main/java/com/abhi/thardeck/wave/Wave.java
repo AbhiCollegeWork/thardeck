@@ -16,8 +16,11 @@ import com.abhi.thardeck.wave.engine.Tuning;
 public final class Wave {
     public static final String TAG = "THARWAVE";
 
-    public static void log(String s) { Log.i(TAG, s); }
-    public static void warn(String s) { Log.w(TAG, s); }
+    /** To logcat, and to the durable drive log once it is initialised. */
+    public static void log(String s) {
+        Log.i(TAG, s);
+        EventLog.append(s);
+    }
 
     // ---- live state ------------------------------------------------------------
 
@@ -137,12 +140,6 @@ public final class Wave {
     public static void saveStrokeInvert(Context c, boolean on) {
         TUNING.strokeInvert = on;
         p(c).edit().putBoolean("strokeInvert", on).apply();
-    }
-
-    /** Forgets a saved value, so the key follows the build default again. */
-    public static void clearTuning(Context c, String key) {
-        TUNING.set(key, new Tuning().get(key));
-        p(c).edit().remove("t_" + key).apply();
     }
 
     public static void resetTuning(Context c) {

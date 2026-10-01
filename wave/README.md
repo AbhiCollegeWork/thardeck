@@ -13,8 +13,9 @@ Android 16; the APK carries arm64 native code only.
 
 ## Gestures
 
-As the driver sees their own hand, held close to the tablet, open, fingers up,
-palm to the tablet:
+Bring the hand into view to give a command; a hand that is already there is
+ignored. As the driver sees their own hand, open, fingers up, palm to the
+tablet:
 
 | Gesture | Command |
 |---|---|
@@ -22,33 +23,58 @@ palm to the tablet:
 | Lower the open hand (a flick down) | `VOL_DOWN`, one step per flick |
 | Swipe the hand to the driver's right | `NEXT` |
 | Swipe the hand to the driver's left | `PREV` |
-| Open palm (all four fingers out) held still about 0.6 s | `PLAY_PAUSE`, once; close the hand for 0.3 s, or take it away for 1.5 s, to arm it again |
+| Open palm, close to the tablet and flat to it, held still about 0.8 s | `PLAY_PAUSE`, once; close the hand for 0.3 s, or take it away for 1.5 s, to arm it again |
 
 Raise the open hand to turn it up, lower it to turn it down, a flick per step;
 drop the hand out of view and flick up again for several steps up.
 
-A hand only counts when its bounding box reaches 0.18 of the frame height (so
-a hand on the wheel is ignored) and it has been there for 100 ms. Once armed,
-strokes keep tracking it down to 0.08, because at the bottom of a down stroke
-the hand shrinks and half leaves the frame; swipes and the palm hold still want
-the box above 0.13. A tracking dropout shorter than 400 ms is forgiven.
+**Deliberate entry.** The engine only acts in a listening window after a hand
+enters the view, meaning it appears after being out of view for at least
+0.8 s. The window lasts 3 s from the entry and is kept open at least 1.5 s
+after each command, so a second stroke or a swipe can follow. When it closes
+with the hand still in view the engine goes dormant: nothing fires and nothing
+builds up until the hand has been out of view for 0.8 s again. This is what
+keeps a hand resting near the tablet, or busy with something else while
+driving, from firing commands. The HUD shows a small dot at the top centre
+while the window is open, and nothing while dormant. Each entry, window close
+and dormant transition is logged.
 
-A stroke is the hand centre (mean of landmarks 0, 5, 9, 13 and 17) moving at
+**Arming.** A hand only counts once its bounding box reaches 0.18 of the frame
+height (a hand on the wheel is smaller) and it has been there for 100 ms.
+Once armed, strokes keep tracking it down to 0.08, because at the bottom of a
+down stroke the hand shrinks and half leaves the frame; swipes and the palm
+hold want the box above 0.13. A tracking dropout shorter than 400 ms is
+forgiven.
+
+**Strokes.** The hand centre (mean of landmarks 0, 5, 9, 13 and 17) moving at
 least 0.08 of the frame vertically within 500 ms, with the vertical travel more
 than 1.5 times the horizontal. Up is `VOL_UP`, down is `VOL_DOWN`; the
-`strokeInvert` switch swaps them if needed. After a stroke the buffer is
-cleared and there is a 300 ms quiet period. The buffer is also cleared
-whenever the hand is lost or drops under the floor, which is why a hand that
-leaves the view and comes back lower does not count as a down stroke.
+`strokeInvert` switch swaps them if needed. The stroke buffer is fed from the
+first frame the hand is seen, before the 100 ms arming delay, so a quick flick
+is not lost and the entry itself can be the stroke; it fires as soon as the
+hand is armed. A stroke does not fire while the hand box is over 0.55 (a hand
+reaching to touch the screen). After a stroke the buffer is cleared and there
+is a 300 ms quiet period. The buffer is also cleared whenever the hand is lost
+or drops under the floor, which is why a hand that leaves the view and comes
+back lower does not count as a down stroke.
 
-A swipe is the horizontal counterpart: 0.14 of the frame sideways within
-450 ms, with vertical travel under 0.6 of the horizontal, then a 600 ms
-cooldown. Strokes are checked first, so the two never fire on the same frame.
+**Swipes.** 0.14 of the frame sideways within 450 ms, with vertical travel
+under half the horizontal, measured only from points where the hand had
+already been in view (box above 0.13) for 150 ms. A swipe fires one frame late,
+and only if the hand is still clearly in view (box above 0.13) on both the
+frame that reached the distance and the next, so a hand dropping out of view
+does not swipe. Then a 600 ms cooldown. Strokes are checked first, so the two
+never fire on the same frame.
 
-The palm hold needs the hand centre to stay within 0.04 for 0.6 s; a palm that
-moves is a stroke or a swipe, never a hold. Its latch survives a size dropout
-or a short loss of tracking, so a palm that briefly reads too small cannot
-fire twice.
+**Palm hold.** All four fingers open, box at least 0.30 of the frame (closer
+than a hand on the wheel), flat to the camera (the knuckle line across the
+hand axis at least 0.45 of the wrist to middle-knuckle length, so an edge-on
+or tilted-back hand does not count), the hand centre within 0.04 for 0.8 s, and
+inside the listening window. While a hold builds, the HUD shows a ring filling
+over the 0.8 s, so the driver sees it coming and can move the hand to cancel.
+A palm that moves is a stroke or a swipe, never a hold. Its latch survives a
+size dropout or a short loss of tracking, so a palm that briefly reads too
+small cannot fire twice.
 
 The HUD shows a round bubble with a plus or minus for a volume step, and an
 icon and a word for the others. The word for the palm is "Play/Pause": the
@@ -120,6 +146,17 @@ The status screen and the calibrate view show `Light: day|night (luma N)`.
 The display rotation is followed live (the receiver turns the screen to
 landscape when projection starts), so the transform is right whenever the
 screen content is upright for the driver.
+
+**Drive log.** Every THARWAVE line (engine transitions and commands, entries
+and dormancy, discovery, light and gate transitions, and the 5 s stats line)
+is also appended to `wave-events.log` in the app's external files directory,
+with a timestamp. At 2 MB it becomes `wave-events.1.log`, replacing the one
+before, so about 4 MB is kept. To look at a drive afterwards:
+
+```
+adb pull /sdcard/Android/data/com.abhi.thardeck.wave/files/wave-events.log
+adb pull /sdcard/Android/data/com.abhi.thardeck.wave/files/wave-events.1.log
+```
 
 Any camera or landmarker error releases everything and retries after 2 s,
 doubling to 30 s. A watchdog restarts the pipeline if no camera frame arrives
@@ -200,7 +237,11 @@ adb shell am broadcast -p com.abhi.thardeck.wave -a com.abhi.thardeck.wave.SIM -
 `token` must equal the configured relay token (the same value the sender puts
 in every datagram); without it the intent is dropped and `sim: bad token` is
 logged. `cmd` is any protocol command and goes straight to the sender and the HUD,
-exactly as a recognised gesture would. `cmd PING` re-runs discovery. `cmd SNAP`
+exactly as a recognised gesture would (so it reaches the phone). `cmd DUMP`
+writes the current state (service, camera, gate, light, engine, last command,
+relay) to the log and the drive log. `cmd HUD` shows each HUD state in turn on
+the screen, the listening dot, a palm ring filling, then the play or pause
+flash, as a display check only: nothing is sent. `cmd PING` re-runs discovery. `cmd SNAP`
 saves the next analysed frame, already in the driver's frame, to the app's
 `files/snap.png` (read it with `adb exec-out run-as com.abhi.thardeck.wave cat
 files/snap.png`), to check the orientation transform by eye. The `-p` is
@@ -216,12 +257,14 @@ where motion is the gate's reading over those five seconds.
 
 ## Tuning
 
-Every threshold lives in `engine/Tuning.java`, grouped as arming
+Every threshold lives in `engine/Tuning.java`, grouped as entry
+(`entryAbsentMs` 800, `entryWindowMs` 3000, `entryExtendMs` 1500), arming
 (`minBoxHeight` 0.18, `minBoxHeightHold` 0.13, `armMs` 100, `lostGraceMs` 400),
 stroke (`strokeMinBox` 0.08, `strokeWindowMs` 500, `strokeMinTravel` 0.08,
-`strokeVerticalRatio` 1.5, `strokeRefractoryMs` 300, and the `strokeInvert`
-switch), swipe (`swipeMinDx` 0.14, `swipeWindowMs` 450, `swipeMaxDyRatio` 0.6,
-`swipeCooldownMs` 600), palm (`palmHoldMs` 600, `palmMaxTravel` 0.04,
+`strokeVerticalRatio` 1.5, `strokeRefractoryMs` 300, `strokeMaxBox` 0.55, and
+the `strokeInvert` switch), swipe (`swipeMinDx` 0.14, `swipeWindowMs` 450,
+`swipeMaxDyRatio` 0.5, `swipeCooldownMs` 600, `swipeMinPresentMs` 150), palm
+(`palmHoldMs` 800, `palmMinBox` 0.30, `palmMinWidth` 0.45, `palmMaxTravel` 0.04,
 `palmReleaseMs` 300, `palmUnlatchAbsentMs` 1500) and camera (`motionMinDiff` 3,
 `darkLuma` 50).
 
@@ -236,42 +279,55 @@ with the landmarks, the hand box (green at or above the arming height, amber
 between the hold and arming heights, red below), a bar the height of the arming
 gate, the light state, the hand centre's trail over the last 500 ms, an arrow
 where each stroke fired (fading over a second), and the engine's live state
-line: state, box height (marked armed when the size gate holds), fingers
-extended, palm latch, and the largest vertical and matching horizontal travel
-in the stroke buffer.
+line: state (including `DORMANT`), box height (marked armed when the size gate
+holds), fingers extended, palm width, palm latch, and the largest vertical and
+matching horizontal travel in the stroke buffer.
 
 ## Verified
 
 On the tablet, 29 Sep 2026, at a desk, tablet locked on its screensaver, the
 phone on the same home Wi-Fi running the companion relay:
 
-- Unit tests (`gradle test`): 31 of 31 pass, 25 for the engine and 6 for
+- Unit tests (`gradle test`): 44 of 44 pass, 38 for the engine and 6 for
   the tuning.
+  - Entry: a hand that appears as a large flat palm and stays still for 2 s
+    gives exactly one `PLAY_PAUSE`; it then closes, stays in view, and opens
+    again about 5 s after entering: dormant, nothing; after 1 s out of view
+    it is a new entry and fires again. A hand resting in view for 4 s and then
+    swiping gives nothing. A command extends the window, so a third stroke
+    3.4 s after entry still counts.
   - Strokes: an upward move of 0.15 over 4 frames gives exactly one `VOL_UP`;
     downward exactly one `VOL_DOWN`; up, a 350 ms pause, then down gives
     `VOL_UP` then `VOL_DOWN`; two upward strokes with the hand lost for 3
     frames between them give two `VOL_UP`; a slow drift of 0.05 over 500 ms
-    gives nothing; `strokeInvert` swaps up and down.
-  - Strokes against swipes: a diagonal move with more sideways than vertical
-    travel gives a swipe and no stroke; a fast rightward sweep gives exactly
-    one `NEXT`; leftward gives `PREV`; a 0.16 swipe with 0.08 vertical drift
-    fires as a swipe, not a stroke; a 0.10 one does not fire.
+    gives nothing; `strokeInvert` swaps up and down. A hand first seen with
+    box 0.25 that rises 0.15 over its first four frames (200 ms) gives one
+    `VOL_UP`; the previous build missed this. A stroke with the box at 0.6
+    does not fire.
+  - Swipes: a diagonal move with more sideways than vertical travel gives a
+    swipe and no stroke; a fast rightward sweep gives exactly one `NEXT`;
+    leftward gives `PREV`; a 0.16 swipe with 0.06 vertical drift fires, a 0.10
+    one does not. A hand that appears and sweeps left in its first 300 ms
+    gives nothing; a hand that sweeps left and is gone, or under the hold
+    height, on the next frame gives nothing; one that sweeps left and stays
+    gives one `PREV`; an open palm being held that drops out of view down and
+    to the left within 300 ms gives nothing.
   - Size: a hand armed at 0.22 that then reads 0.10 still strokes; the same
-    motion at 0.10 from the start never arms and gives nothing; an armed hand
-    under the 0.08 floor gives nothing and drops to `IDLE`; an armed hand at
-    0.16 still swipes, at 0.10 it does not. A hand too small (0.15) gives
-    nothing for stroke, swipe and palm; with the gate lowered all three fire.
-  - Palm: a palm held perfectly still for 700 ms gives exactly one
-    `PLAY_PAUSE`; holding on gives no more; closing for 132 ms does not re-arm
-    it, closing for 330 ms and reopening fires again; a palm pumping up and
-    down gives three `VOL_UP` and three `VOL_DOWN` and never `PLAY_PAUSE`; a
-    drifting palm never fires. A size dropout in the middle of the hold (3
-    frames, and 10 frames, past the grace) gives one, not two; a dropout after
-    it fired gives none; no hand for 1.65 s re-arms it, 0.99 s does not.
+    motion at 0.10 from the start gives nothing; an armed hand under the 0.08
+    floor gives nothing and drops to `IDLE`; an armed hand at 0.16 still
+    swipes, at 0.10 it does not. A hand too small (0.15) gives nothing for
+    stroke, swipe and palm; with the gates lowered all three fire.
+  - Palm: a still palm held 800 ms gives one `PLAY_PAUSE`; holding on gives no
+    more; closing for 330 ms and reopening fires again, a 132 ms blink does
+    not; a palm pumping up and down gives three `VOL_UP` and three `VOL_DOWN`
+    and never `PLAY_PAUSE`; a drifting palm never fires; a palm at box 0.22
+    gives nothing; an edge-on palm (width 0.2) gives nothing. Size dropouts in
+    the middle of the hold or after it fired do not double fire; no hand for
+    1.65 s re-arms it, 0.99 s does not.
   - Tuning: every key reads, writes and resets its own field, every default
     sits on its slider's step, the defaults are as listed above, reset restores
-    the stroke direction, the circle, fist, roll and tilt keys are gone, and
-    the hold slider sits after the arming slider.
+    the stroke direction, retired keys are gone, and the hold slider sits after
+    the arming slider.
 - Camera opened: `camera: open, analysis stream 320x240`, sensor orientation
   270, display rotation 90, AE fps range [15, 15]; the status screen showed
   15.0 fps from the sensor.
@@ -334,13 +390,12 @@ phone on the same home Wi-Fi running the companion relay:
 - Night mode is untested in real darkness. The bench check forced it in a lit
   room; whether the extra exposure, the lower fps floor and the gamma lift let
   the tracker find a hand at night has not been seen.
-- Strokes and the palm hold have been tested on the tablet only with synthetic
-  landmarks. The stroke rule was checked by the coordinator against the
-  owner's recorded gesture video with the same hand model, not by this build
-  on the tablet with a live hand. Earlier real-hand sessions at the tablet
-  drove the size hysteresis, the dropout grace, the lower motion threshold,
-  the latch rules and the swipe distances; none of it has been in a moving
-  car.
+- The entry gate, the stricter palm hold and the revised swipe rule have been
+  tested only with synthetic landmarks so far. The first drive with the
+  stroke build showed strokes never firing (the arming delay, fixed here),
+  false play and pause while driving, and next and previous working only
+  sometimes; that drive was lost from logcat, which is why the drive log now
+  exists. None of this build has been in the car yet.
 - The receiver's frame budget (`Throughput over ... dropped=N, skipped=N`) has
   not been checked with Wave running, because the receiver was not projecting
   during the bench test. That is the acceptance check still to do in the car.
