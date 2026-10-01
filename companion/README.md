@@ -148,7 +148,10 @@ TD1 <token> <CMD>      CMD: PING, VOL_UP, VOL_DOWN, PLAY_PAUSE, NEXT, PREV
   media session is active.
 - `PING` is answered to the sender with `TD1 PONG <phone model>`, which is how
   the tablet finds the phone, by its gateway address on the phone's hotspot or
-  by subnet broadcast on other Wi-Fi.
+  by subnet broadcast on other Wi-Fi. The relay holds a Wi-Fi multicast lock
+  while it listens, because Android drops broadcast frames in power saving
+  without one; verified with the phone dozing, a subnet-broadcast PING was
+  answered at once.
 - A wrong token or a malformed line is dropped without a reply.
 - If a network change breaks the socket, the relay closes it, waits a second
   and binds again.
