@@ -232,6 +232,18 @@ public class ServerService extends Service {
         relay = new MediaRelay(this, relayChanged);
         relay.start();
         Hu.log("ServerService up");
+        // Makes a pulled drive log self-describing. The car's NAME only,
+        // never its address.
+        Hu.log("start: thardeck " + appVersion() + ", car '" + Hu.carName(this)
+                + "', watcher " + (Hu.isEnabled(this) ? "ON" : "OFF"));
+    }
+
+    String appVersion() {
+        try {
+            android.content.pm.PackageInfo pi =
+                    getPackageManager().getPackageInfo(getPackageName(), 0);
+            return pi.versionName + " (" + pi.getLongVersionCode() + ")";
+        } catch (Throwable t) { return "unknown"; }
     }
 
     @Override public int onStartCommand(Intent i, int flags, int startId) {

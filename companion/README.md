@@ -116,6 +116,22 @@ adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardec
 adb shell am broadcast -n com.abhi.thardeck/.ControlReceiver -a com.abhi.thardeck.SET_TOKEN --es token <value>
 ```
 
+## Event log
+
+Every line the app logs at tag `THARDECK` is also appended, with a
+`yyyy-MM-dd HH:mm:ss.SSS` timestamp, to a file in the app's own external files
+directory, so a drive can be analysed afterwards without an adb capture
+running on the phone (the logcat ring buffer only holds minutes). It flushes
+after every line and rotates at 2 MB to `thardeck-events.1.log`, keeping one
+old file. Each service start writes a line with the app version, the car
+device's name (never its address) and the watcher state. The relay token is
+never written.
+
+```bash
+adb pull /sdcard/Android/data/com.abhi.thardeck/files/thardeck-events.log
+adb pull /sdcard/Android/data/com.abhi.thardeck/files/thardeck-events.1.log   # older part, if rotated
+```
+
 ## Media relay
 
 Thar Deck Wave, the hand-gesture app on the dashboard tablet, controls music
@@ -186,8 +202,10 @@ options" seven times in 700 ms because the popup had not reached the tree yet,
 and each click closed the last. The tapper now searches every Android Auto
 window, waits 800 ms between overflow clicks, caps them at 3 per action, and
 the service relaunches settings once if the tapper has not acted after 3 s.
-This build installs and the tapper connects; the stop and start taps have not
-yet been re-run on it, because the phone was locked at test time.
+Re-run on this build with the phone unlocked, stop then start then stop: each
+action opened the overflow once to read the label, clicked once, opened it once
+more to confirm the flip, and finished ("already stopped", "running", "stopped")
+within about a second, with the port following each time. No repeated clicks.
 
 ## Limitations
 

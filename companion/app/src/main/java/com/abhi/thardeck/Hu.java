@@ -73,7 +73,12 @@ public final class Hu {
     /** Datagrams dropped for a bad token or a malformed line. */
     public static volatile int relayDropped = 0;
 
-    public static void log(String s) { Log.i(TAG, s); }
+    /** Logcat plus the durable event log file (see EventLog). Never pass a
+     *  secret such as the relay token. */
+    public static void log(String s) {
+        Log.i(TAG, s);
+        EventLog.append(s);
+    }
 
     // ---- preferences ---------------------------------------------------------
 
