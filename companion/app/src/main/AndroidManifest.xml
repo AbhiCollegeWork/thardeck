@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- The media relay's UDP socket on 5299. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Keeps broadcast discovery PINGs arriving while the phone dozes. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
 
     <application
         android:name=".ThardeckApp"

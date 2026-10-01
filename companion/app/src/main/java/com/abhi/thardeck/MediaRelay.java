@@ -2,6 +2,7 @@ package com.abhi.thardeck;
 
 import android.content.Context;
 import android.media.AudioManager;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.SystemClock;
 import android.view.KeyEvent;
@@ -55,9 +56,25 @@ public final class MediaRelay {
         this.onStateChange = onStateChange;
     }
 
+    /** Without this, Wi-Fi power saving drops broadcast frames while the phone
+     *  dozes, so the tablet's broadcast PING on a shared Wi-Fi goes unanswered.
+     *  Unicast (the hotspot gateway path) is unaffected. */
+    private WifiManager.MulticastLock mcLock;
+
     public synchronized void start() {
         if (running) return;
         running = true;
+        try {
+            WifiManager wm = ctx.getSystemService(WifiManager.class);
+            if (wm != null) {
+                mcLock = wm.createMulticastLock("thardeck-relay");
+                mcLock.setReferenceCounted(false);
+                mcLock.acquire();
+                Hu.log("relay: multicast lock held");
+            }
+        } catch (Throwable t) {
+            Hu.log("relay: multicast lock failed: " + t);
+        }
         thread = new Thread(new Runnable() {
             @Override public void run() { loop(); }
         }, "thardeck-relay");
@@ -70,6 +87,13 @@ public final class MediaRelay {
         closeQuietly();
         if (thread != null) thread.interrupt();
         thread = null;
+        if (mcLock != null) {
+            try {
+                if (mcLock.isHeld()) mcLock.release();
+                Hu.log("relay: multicast lock released");
+            } catch (Throwable ignored) {}
+            mcLock = null;
+        }
         state("stopped");
     }
 
