@@ -23,13 +23,18 @@ public class GestureEngineTest {
     Tuning tuning;
     GestureEngine engine;
     List<Cmd> emitted;
+    List<String> logs;
     long t;
 
     @Before public void setUp() {
         tuning = new Tuning();
         engine = new GestureEngine(tuning);
+        logs = new ArrayList<>();
         engine.setLog(new GestureEngine.Log() {
-            @Override public void log(String line) { System.out.println(t + "ms " + line); }
+            @Override public void log(String line) {
+                System.out.println(t + "ms " + line);
+                logs.add(line);
+            }
         });
         emitted = new ArrayList<>();
         t = 1000;
@@ -120,6 +125,12 @@ public class GestureEngineTest {
 
     int volume() { return count(Cmd.VOL_UP) + count(Cmd.VOL_DOWN); }
 
+    /** The single "window: no command" line logged so far, or "" if none. */
+    String windowLine() {
+        for (String l : logs) if (l.startsWith("window: no command")) return l;
+        return "";
+    }
+
     /** Open hand at (0.5, y), n frames still. */
     void still(double y, int n) {
         for (int i = 0; i < n; i++) feed(openHand(0.5, y, 0.5));
@@ -160,21 +171,25 @@ public class GestureEngineTest {
         still(0.6, 3);
         double y = stroke(0.6, -0.15, 4);
         still(y, 5); // about 350 ms at the top
-        stroke(y, 0.15, 4);
+        y = stroke(y, 0.15, 4);
+        still(y, 3);
         System.out.println("pump emitted " + emitted);
         assertEquals("VOL_UP then VOL_DOWN, got " + emitted, 2, emitted.size());
         assertEquals(Cmd.VOL_UP, emitted.get(0));
         assertEquals(Cmd.VOL_DOWN, emitted.get(1));
     }
 
-    /** Several steps up: flick up, drop the hand out of view, flick up again.
-     *  The return out of view must not count as a down stroke. */
+    /** Several steps up: flick up, a moment at the top, drop the hand out of
+     *  view, flick up again. The return out of view must not count as a down
+     *  stroke. */
     @Test public void twoUpStrokesWithTheHandLostBetweenEmitTwoUps() {
         still(0.6, 3);
-        stroke(0.6, -0.15, 4);
-        absent(3);    // hand drops out of view
+        double y = stroke(0.6, -0.15, 4);
+        still(y, 2);
+        absent(3);     // hand drops out of view
         still(0.6, 1); // back in at the bottom
-        stroke(0.6, -0.15, 4);
+        y = stroke(0.6, -0.15, 4);
+        still(y, 2);
         System.out.println("two ups emitted " + emitted);
         assertEquals("two VOL_UP, got " + emitted, 2, count(Cmd.VOL_UP));
         assertEquals("nothing else, got " + emitted, 2, emitted.size());
@@ -188,10 +203,10 @@ public class GestureEngineTest {
         assertEquals("slow drift must emit nothing, got " + emitted, 0, emitted.size());
     }
 
-    /** A diagonal move, more sideways than up or down, is a swipe, not a stroke. */
+    /** A slightly diagonal move, mostly sideways, is a swipe, not a stroke. */
     @Test public void diagonalMoveIsASwipeNotAStroke() {
         still(0.5, 4);
-        for (int i = 1; i <= 4; i++) feed(openHand(0.5 + 0.05 * i, 0.5 + 0.02 * i, 0.5));
+        for (int i = 1; i <= 4; i++) feed(openHand(0.5 + 0.05 * i, 0.5 + 0.015 * i, 0.5));
         System.out.println("diagonal emitted " + emitted);
         assertEquals("one NEXT, got " + emitted, 1, count(Cmd.NEXT));
         assertEquals("no stroke, got " + emitted, 0, volume());
@@ -201,6 +216,7 @@ public class GestureEngineTest {
         tuning.strokeInvert = true;
         still(0.6, 3);
         stroke(0.6, -0.15, 4);
+        still(0.45, 3);
         assertEquals("inverted up is VOL_DOWN, got " + emitted, 1, count(Cmd.VOL_DOWN));
         assertEquals(1, emitted.size());
     }
@@ -225,6 +241,48 @@ public class GestureEngineTest {
         assertEquals("box 0.6 is over the stroke cap, got " + emitted, 0, volume());
     }
 
+    /** A hand moving down 0.12 over four frames and then gone is a hand
+     *  leaving, not a stroke; the closed window says so. */
+    @Test public void strokeThatLeavesViewIsNothing() {
+        still(0.4, 3);
+        stroke(0.4, 0.12, 4);
+        absent(50); // past the end of the window
+        assertEquals("a hand dropping out never strokes, got " + emitted, 0, emitted.size());
+        assertTrue("window line names it, got " + windowLine(), windowLine().endsWith("reject=left_view"));
+    }
+
+    /** The same move, staying in view for three more frames, is one VOL_DOWN. */
+    @Test public void strokeThatStaysInViewFires() {
+        still(0.4, 3);
+        double y = stroke(0.4, 0.12, 4);
+        still(y, 3);
+        assertEquals("one VOL_DOWN, got " + emitted, 1, count(Cmd.VOL_DOWN));
+        assertEquals("nothing else, got " + emitted, 1, emitted.size());
+    }
+
+    /** Settling into position, 0.10 down over 600 ms, is too slow to be a
+     *  stroke; the closed window says so. */
+    @Test public void slowDescentIsNotAStroke() {
+        for (int i = 0; i < 3; i++) feed(twoFinger(0.5, 0.4, 0.5));
+        for (int i = 1; i <= 9; i++) feed(twoFinger(0.5, 0.4 + 0.10 * i / 9, 0.5));
+        for (int i = 0; i < 45; i++) feed(twoFinger(0.5, 0.5, 0.5)); // past the window
+        assertEquals("a slow descent emits nothing, got " + emitted, 0, emitted.size());
+        assertTrue("window line names it, got " + windowLine(), windowLine().endsWith("reject=too_slow"));
+        assertTrue("entry logs the box, got " + logs, logs.contains("entry: box=0.50, listening 3000 ms"));
+    }
+
+    /** A palm hold, then 300 ms later a fast move down that stays in view:
+     *  only the play or pause, because strokes are muted just after it. */
+    @Test public void strokeJustAfterPalmIsMuted() {
+        holdPalm();
+        still(0.5, 3);
+        double y = stroke(0.5, 0.15, 4);
+        still(y, 3);
+        System.out.println("palm then stroke emitted " + emitted);
+        assertEquals("only PLAY_PAUSE, got " + emitted, 1, emitted.size());
+        assertEquals(Cmd.PLAY_PAUSE, emitted.get(0));
+    }
+
     // ---- size floor while tracking ----------------------------------------------------
 
     /** Armed at 0.22, the hand then reads 0.10 (under the hold height, over
@@ -232,6 +290,7 @@ public class GestureEngineTest {
     @Test public void armedHandKeepsTrackingDownToTheStrokeFloor() {
         for (int i = 0; i < 3; i++) feedBox(openHand(0.5, 0.6, 0.5), 0.22);
         for (int i = 1; i <= 4; i++) feedBox(openHand(0.5, 0.6 - 0.0375 * i, 0.5), 0.10);
+        for (int i = 0; i < 2; i++) feedBox(openHand(0.5, 0.45, 0.5), 0.10);
         assertEquals("armed hand at 0.10 strokes, got " + emitted, 1, count(Cmd.VOL_UP));
     }
 
@@ -402,12 +461,17 @@ public class GestureEngineTest {
     /** A command extends the window: a second stroke 2.5 s after the first
      *  still counts, well past the original 3 s from entry. */
     @Test public void commandExtendsTheWindow() {
-        still(0.6, 3);
-        double y = stroke(0.6, -0.15, 4);       // about 0.3 s after entry
-        still(y, 20);                           // 1.3 s later
-        y = stroke(y, 0.15, 4);                 // about 1.9 s after entry
-        still(y, 18);                           // 1.2 s later, 3.3 s after entry
-        stroke(y, -0.15, 4);
+        // Two fingers out, so the still spells between strokes are not a palm hold.
+        double y = 0.6;
+        for (int i = 0; i < 3; i++) feed(twoFinger(0.5, y, 0.5));
+        for (int i = 1; i <= 4; i++) feed(twoFinger(0.5, 0.6 - 0.0375 * i, 0.5)); // up
+        y = 0.45;
+        for (int i = 0; i < 20; i++) feed(twoFinger(0.5, y, 0.5));                // 1.3 s
+        for (int i = 1; i <= 4; i++) feed(twoFinger(0.5, 0.45 + 0.0375 * i, 0.5)); // down
+        y = 0.6;
+        for (int i = 0; i < 18; i++) feed(twoFinger(0.5, y, 0.5));                // 1.2 s
+        for (int i = 1; i <= 4; i++) feed(twoFinger(0.5, 0.6 - 0.0375 * i, 0.5)); // up, past 3 s
+        for (int i = 0; i < 3; i++) feed(twoFinger(0.5, 0.45, 0.5));
         System.out.println("extended window emitted " + emitted);
         assertEquals("three strokes, got " + emitted, 3, volume());
     }
@@ -427,9 +491,8 @@ public class GestureEngineTest {
      *  about 260 ms, with some vertical drift, fires; 0.10 does not. */
     @Test public void measuredSizeSwipeFiresAndShortOneDoesNot() {
         for (int i = 0; i < 4; i++) feed(openHand(0.40, 0.5, 0.5));
-        for (int i = 1; i <= 4; i++) feed(openHand(0.40 + 0.04 * i, 0.5 + 0.015 * i, 0.5));
-        feed(openHand(0.56, 0.56, 0.5)); // still in view on the next frame
-        assertEquals("0.16 sideways with 0.06 vertical is a swipe, got " + emitted, 1, count(Cmd.NEXT));
+        for (int i = 1; i <= 4; i++) feed(openHand(0.40 + 0.04 * i, 0.5 + 0.0125 * i, 0.5));
+        assertEquals("0.16 sideways with 0.05 vertical is a swipe, got " + emitted, 1, count(Cmd.NEXT));
         assertEquals("and not a stroke, got " + emitted, 0, volume());
         absent(15);
         emitted.clear();
@@ -456,25 +519,6 @@ public class GestureEngineTest {
         assertEquals("sweeping in emits nothing, got " + emitted, 0, count(Cmd.PREV) + count(Cmd.NEXT));
     }
 
-    /** A hand sweeps left and is gone on the frame after the threshold is
-     *  met: that is a hand leaving, not a swipe. */
-    @Test public void sweepThatVanishesIsNotASwipe() {
-        for (int i = 0; i < 4; i++) feed(openHand(0.6, 0.5, 0.5));
-        for (int i = 1; i <= 3; i++) feed(openHand(0.6 - 0.05 * i, 0.5, 0.5)); // 0.15 at the third
-        absent(10);
-        assertEquals("vanishing hand emits nothing, got " + emitted, 0, emitted.size());
-    }
-
-    /** Same, but the box drops under the hold height on the next frame, as
-     *  when the hand half leaves the frame. */
-    @Test public void sweepThatHalfLeavesIsNotASwipe() {
-        for (int i = 0; i < 4; i++) feedBox(openHand(0.6, 0.5, 0.5), 0.25);
-        for (int i = 1; i <= 3; i++) feedBox(openHand(0.6 - 0.05 * i, 0.5, 0.5), 0.25);
-        feedBox(openHand(0.4, 0.5, 0.5), 0.10);
-        absent(10);
-        assertEquals("half-leaving hand emits nothing, got " + emitted, 0, emitted.size());
-    }
-
     /** A hand that sweeps left and stays in view is one PREV, with no need to
      *  be still first. */
     @Test public void sweepThatStaysIsOnePrev() {
@@ -483,6 +527,36 @@ public class GestureEngineTest {
         for (int i = 0; i < 4; i++) feed(openHand(0.4, 0.5, 0.5)); // stays where it ended
         assertEquals("exactly one PREV, got " + emitted, 1, count(Cmd.PREV));
         assertEquals("nothing else, got " + emitted, 1, emitted.size());
+    }
+
+    /** A level sweep of 0.16 that then leaves the frame is one swipe: real
+     *  swipes sweep out of view. */
+    @Test public void levelSweepThatLeavesIsOneSwipe() {
+        for (int i = 0; i < 4; i++) feed(openHand(0.6, 0.5, 0.5));
+        for (int i = 1; i <= 4; i++) feed(openHand(0.6 - 0.04 * i, 0.5 + 0.005 * i, 0.5));
+        absent(10);
+        System.out.println("sweep out emitted " + emitted);
+        assertEquals("exactly one PREV, got " + emitted, 1, count(Cmd.PREV));
+        assertEquals("nothing else, got " + emitted, 1, emitted.size());
+    }
+
+    /** The 21:07 phantom: a hand leaving the view down and to the left, with
+     *  the vertical about 0.6 of the horizontal. Not level, so not a swipe,
+     *  and the closed window says why. */
+    @Test public void handLeavingDownAndSidewaysIsNotASwipe() {
+        for (int i = 0; i < 4; i++) feed(twoFinger(0.6, 0.5, 0.5));
+        for (int i = 1; i <= 4; i++) feed(twoFinger(0.6 - 0.05 * i, 0.5 + 0.03 * i, 0.5));
+        absent(50); // past the end of the window
+        assertEquals("leaving down and left emits nothing, got " + emitted, 0, emitted.size());
+        assertTrue("window line names it, got " + windowLine(), windowLine().endsWith("reject=not_level"));
+    }
+
+    /** A level sweep in the first 150 ms after the hand appears is a hand
+     *  coming in, not a swipe. */
+    @Test public void levelSweepRightOnEntryIsNotASwipe() {
+        for (int i = 0; i < 3; i++) feed(openHand(0.7 - 0.08 * i, 0.5, 0.5));
+        absent(10);
+        assertEquals("sweeping in emits nothing, got " + emitted, 0, emitted.size());
     }
 
     /** The live finding: an open palm being held, then the hand dropping out
@@ -504,6 +578,7 @@ public class GestureEngineTest {
         double s = 0.15;
         for (int i = 0; i < 3; i++) feed(openHand(0.5, 0.6, s));
         for (int i = 1; i <= 4; i++) feed(openHand(0.5, 0.6 - 0.0375 * i, s));
+        for (int i = 0; i < 2; i++) feed(openHand(0.5, 0.45, s));
         absent(15);
         for (int i = 0; i < 4; i++) feed(openHand(0.25, 0.5, s));
         for (int i = 1; i <= 6; i++) feed(openHand(0.25 + 0.09 * i, 0.5, s));
@@ -513,8 +588,10 @@ public class GestureEngineTest {
 
     @Test public void tooSmallHandEmitsNothing() {
         smallHandRoutine();
+        absent(50);
         System.out.println("small hand emitted " + emitted);
         assertEquals("a far hand must emit nothing, got " + emitted, 0, emitted.size());
+        assertTrue("window line names it, got " + windowLine(), windowLine().endsWith("reject=box_small"));
     }
 
     /** Control: the same motions with the size gates lowered do fire, so it

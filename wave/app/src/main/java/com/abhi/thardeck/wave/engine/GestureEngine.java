@@ -3,6 +3,7 @@ package com.abhi.thardeck.wave.engine;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The gesture state machine. Pure Java, no Android, so it is unit tested with
@@ -17,25 +18,26 @@ import java.util.List;
  * least entryAbsentMs. The window lasts entryWindowMs and is extended to at
  * least entryExtendMs after each command, so a second stroke or a swipe can
  * follow. When it closes with the hand still there the engine goes DORMANT:
- * nothing fires and nothing accumulates until the hand has left again. A hand
- * resting in view while driving, or moving about doing other things, gets one
- * window at most and then is ignored.
+ * nothing fires and nothing accumulates until the hand has left again. A
+ * window that closes with no command logs one line naming the closest miss,
+ * so a drive log shows why a gesture did not count.
  *
  * Three recognisers, checked in this order on every frame, at most one firing
  * per frame:
  *
- *   stroke  the open hand, fingers up, palm to the tablet, raised or lowered
- *           in a flick: the hand centre moves mostly vertically by at least
- *           strokeMinTravel within strokeWindowMs. Up is VOL_UP, down is
- *           VOL_DOWN, one step per flick, then a short refractory. The stroke
- *           buffer is fed from the first frame the hand is seen, so a quick
- *           flick is not lost to the arming delay, and the entry itself may be
- *           the stroke. Not while the hand is so big it is reaching for the
- *           screen.
- *   swipe   the hand centre moves mostly horizontally, far and fast, measured
- *           from points where the hand had been in view a moment. It fires one
- *           frame late, and only if the hand is still clearly in view then, so
- *           a hand dropping out of view does not swipe.
+ *   stroke  the open hand raised or lowered in a fast flick: the hand centre
+ *           moves mostly vertically by at least strokeMinTravel within
+ *           strokeWindowMs. Up is VOL_UP, down is VOL_DOWN. A stroke fires two
+ *           frames after it is reached, and only if the hand is still in view
+ *           on both, so a hand dropping out of view never counts. Not while
+ *           the hand is so big it is reaching for the screen, and not just
+ *           after a play or pause. The stroke buffer is fed from the first
+ *           frame the hand is seen, so a quick flick is not lost to the arming
+ *           delay, and the entry itself may be the stroke.
+ *   swipe   the hand centre moves sideways by swipeMinDx within
+ *           swipeWindowMs and stays level the whole way, measured from points
+ *           where the hand had been in view a moment. It fires at once; the
+ *           hand may sweep out of view after.
  *   palm    all four fingers open, close to the tablet, flat to the camera,
  *           held still for palmHoldMs: play or pause, once, then the hand has
  *           to stop being an open palm (or leave) before it can fire again. A
@@ -56,8 +58,11 @@ public final class GestureEngine {
 
     public enum State { IDLE, ARMING, READY, PALM_HOLD, PALM_LATCHED, COOLDOWN, DORMANT }
 
-    /** Receives one line per state transition and per emitted command. */
+    /** Receives one line per state transition, emitted command and window. */
     public interface Log { void log(String line); }
+
+    /** A reached stroke fires after this many more frames with the hand in view. */
+    static final int STROKE_CONFIRM_FRAMES = 2;
 
     private static final int WRIST = 0, INDEX_MCP = 5, MIDDLE_MCP = 9, PINKY_MCP = 17;
     private static final int[] CENTRE_IDX = {0, 5, 9, 13, 17};
@@ -74,7 +79,13 @@ public final class GestureEngine {
     /** Last frame with a hand in view (box at least the stroke floor). */
     private long lastSeenMs = -1;
     private long windowUntil = Long.MIN_VALUE / 4;
-    private boolean windowClosedLogged = true;
+    private boolean windowOpen = false;
+
+    // what the current window saw, for the line logged when it closes
+    private int winCommands;
+    private boolean winSeen;
+    private double winMinX, winMaxX, winMinY, winMaxY, winMaxBox;
+    private boolean rejMute, rejLeft, rejNotLevel;
 
     // arming
     private long presentSince = -1;
@@ -87,14 +98,16 @@ public final class GestureEngine {
     /** Last frame with any hand at all, of any size. */
     private long lastPresentMs = -1;
 
-    // stroke: {t, x, y}
+    // stroke: {t, x, y}, and a reached stroke waiting for its confirming frames
     private final ArrayDeque<double[]> strokeBuf = new ArrayDeque<>();
     private long refractoryUntil = Long.MIN_VALUE / 4;
+    private Cmd pendingStroke = null;
+    private int pendingLeft = 0;
+    private long lastPalmFireMs = Long.MIN_VALUE / 4;
 
-    // swipe: {t, x, y}, and a swipe waiting for its confirming frame
+    // swipe: {t, x, y}
     private final ArrayDeque<double[]> centres = new ArrayDeque<>();
     private long fullSince = -1;
-    private Cmd pendingSwipe = null;
     private long cooldownUntil = Long.MIN_VALUE / 4;
 
     // palm
@@ -125,7 +138,7 @@ public final class GestureEngine {
 
     /** One line of live engine state for the calibrate screen. */
     public String debugLine() {
-        return String.format(java.util.Locale.ROOT,
+        return String.format(Locale.ROOT,
                 "%s box=%.2f%s fingers=%d width=%.2f%s stroke dy=%+.2f dx=%.2f",
                 state, lastBoxH, sizeLatched ? "(armed)" : "", lastExtended, lastWidth,
                 palmLatched ? " palm(latched)" : "", lastDy, lastDx);
@@ -141,7 +154,8 @@ public final class GestureEngine {
         lastBigMs = -1;
         lastSeenMs = -1;
         windowUntil = Long.MIN_VALUE / 4;
-        windowClosedLogged = true;
+        windowOpen = false;
+        lastPalmFireMs = Long.MIN_VALUE / 4;
         setState(State.IDLE, "reset");
     }
 
@@ -159,23 +173,22 @@ public final class GestureEngine {
         boolean seen = f.present && h >= floor;
 
         // ---- deliberate entry ----
+        if (windowOpen && t > windowUntil) closeWindow(seen);
         if (seen) {
             if (lastSeenMs < 0 || t - lastSeenMs >= tu.entryAbsentMs) {
+                if (windowOpen) closeWindow(false);
                 if (state != State.IDLE) {
                     resetAll();
                     setState(State.IDLE, "hand came back");
                 }
                 windowUntil = t + (long) tu.entryWindowMs;
-                windowClosedLogged = false;
-                log.log("engine: entry, listening for " + (long) tu.entryWindowMs + " ms");
+                openWindow();
+                log.log(String.format(Locale.ROOT, "entry: box=%.2f, listening %d ms",
+                        h, (long) tu.entryWindowMs));
             }
             lastSeenMs = t;
         }
         boolean listening = t <= windowUntil;
-        if (!listening && !windowClosedLogged) {
-            windowClosedLogged = true;
-            log.log("engine: listening window closed" + (seen ? ", dormant until the hand leaves" : ""));
-        }
 
         // A fired palm re-arms when the hand has really gone: no hand of any
         // size for palmUnlatchAbsentMs. Measured as a gap, so it also works
@@ -201,6 +214,7 @@ public final class GestureEngine {
             for (int i : CENTRE_IDX) { hx += f.x[i]; hy += f.y[i]; }
             hx /= CENTRE_IDX.length; hy /= CENTRE_IDX.length;
         }
+        if (listening && seen) noteWindow(hx, hy, h);
 
         // Stroke buffer, fed from the first frame the hand is seen, before the
         // arming delay: armed for strokes once the box has reached
@@ -215,13 +229,15 @@ public final class GestureEngine {
             }
         } else {
             // Lost, below the floor, or dormant: the stroke buffer goes, so
-            // the hand coming back lower is not read as a down stroke.
+            // the hand coming back lower is not read as a down stroke, and a
+            // stroke waiting for confirmation is dropped: the hand left.
             strokeBuf.clear();
+            dropStroke();
         }
 
         if (!tracked) {
             lastExtended = 0;
-            dropSwipe();
+            centres.clear();
             if (lastGoodFrame >= 0 && t - lastGoodFrame <= tu.lostGraceMs) {
                 return out; // a short dropout: keep arming and the palm hold
             }
@@ -235,7 +251,7 @@ public final class GestureEngine {
         lastGoodFrame = t;
         if (!listening) {
             // Dormant: the hand is here but did not just arrive.
-            dropSwipe();
+            centres.clear();
             palmSince = -1;
             setState(State.DORMANT, "listening window closed");
             return out;
@@ -264,10 +280,29 @@ public final class GestureEngine {
         // so the tail of the same swipe cannot fire anything.
         if (t < cooldownUntil) {
             strokeBuf.clear();
-            dropSwipe();
+            dropStroke();
+            centres.clear();
             return out;
         }
         if (state == State.COOLDOWN) setState(State.READY, "cooldown over");
+
+        // ---- a reached stroke, confirmed while the hand stays in view ----
+        if (pendingStroke != null) {
+            if (--pendingLeft > 0) return out;
+            Cmd c = pendingStroke;
+            pendingStroke = null;
+            if (t - lastPalmFireMs < tu.strokeAfterPalmMuteMs) {
+                rejMute = true;
+                return out;
+            }
+            fire(out, c, t);
+            refractoryUntil = t + (long) tu.strokeRefractoryMs;
+            strokeBuf.clear();
+            centres.clear();
+            palmSince = -1;
+            if (state != State.PALM_LATCHED) setState(State.READY, "stroke " + c);
+            return out;
+        }
 
         // ---- stroke, checked first so a vertical move is never a swipe ----
         double bestDy = 0, bestDx = 0;
@@ -282,36 +317,26 @@ public final class GestureEngine {
                 double dx = hx - p[1], dy = hy - p[2];
                 if (Math.abs(dy) >= tu.strokeMinTravel
                         && Math.abs(dy) > tu.strokeVerticalRatio * Math.abs(dx)) {
+                    if (t - lastPalmFireMs < tu.strokeAfterPalmMuteMs) {
+                        rejMute = true;
+                        strokeBuf.clear();
+                        break;
+                    }
                     boolean up = (dy < 0) != tu.strokeInvert; // y is down on screen
-                    fire(out, up ? Cmd.VOL_UP : Cmd.VOL_DOWN, t);
+                    pendingStroke = up ? Cmd.VOL_UP : Cmd.VOL_DOWN;
+                    pendingLeft = STROKE_CONFIRM_FRAMES;
                     strokeBuf.clear();
-                    dropSwipe();
-                    refractoryUntil = t + (long) tu.strokeRefractoryMs;
+                    centres.clear();
                     palmSince = -1;
-                    if (state != State.PALM_LATCHED) setState(State.READY, up ? "stroke up" : "stroke down");
                     return out;
                 }
             }
         }
 
         if (!full) {
-            // Between the stroke floor and the hold height: strokes only, and
-            // a swipe in waiting is dropped because the hand is leaving view.
+            // Between the stroke floor and the hold height: strokes only.
             palmSince = -1;
-            dropSwipe();
-            return out;
-        }
-
-        // ---- swipe confirmation: the frame after the threshold was met ----
-        if (pendingSwipe != null) {
-            Cmd c = pendingSwipe;
-            pendingSwipe = null;
-            fire(out, c, t);
-            cooldownUntil = t + (long) tu.swipeCooldownMs;
-            strokeBuf.clear();
             centres.clear();
-            palmSince = -1;
-            setState(State.COOLDOWN, c == Cmd.NEXT ? "swipe right" : "swipe left");
             return out;
         }
 
@@ -348,6 +373,7 @@ public final class GestureEngine {
                     setState(State.PALM_HOLD, moved ? "palm moved, restart hold" : "open palm");
                 } else if (t - palmSince >= tu.palmHoldMs) {
                     fire(out, Cmd.PLAY_PAUSE, t);
+                    lastPalmFireMs = t;
                     palmSince = -1;
                     palmLatched = true;
                     notPalmSince = -1;
@@ -364,14 +390,28 @@ public final class GestureEngine {
             }
         }
 
-        // ---- swipe: threshold now, confirmed next frame ----
-        for (double[] p : centres) {
-            double dx = hx - p[1], dy = hy - p[2];
-            if (Math.abs(dx) >= tu.swipeMinDx && Math.abs(dy) < tu.swipeMaxDyRatio * Math.abs(dx)) {
-                pendingSwipe = dx > 0 ? Cmd.NEXT : Cmd.PREV;
-                log.log("engine: swipe " + (dx > 0 ? "right" : "left") + " reached, confirming next frame");
-                break;
+        // ---- swipe: far enough sideways and level all the way, fires now ----
+        double[][] pts = centres.toArray(new double[0][]);
+        for (int i = 0; i < pts.length; i++) {
+            double dx = hx - pts[i][1];
+            if (Math.abs(dx) < tu.swipeMinDx) continue;
+            double limit = tu.swipeMaxDyRatio * Math.abs(dx);
+            boolean level = Math.abs(hy - pts[i][2]) < limit;
+            for (int j = i + 1; level && j < pts.length; j++) {
+                if (Math.abs(pts[j][2] - pts[i][2]) >= limit) level = false;
             }
+            if (!level) {
+                rejNotLevel = true;
+                continue;
+            }
+            Cmd c = dx > 0 ? Cmd.NEXT : Cmd.PREV;
+            fire(out, c, t);
+            cooldownUntil = t + (long) tu.swipeCooldownMs;
+            strokeBuf.clear();
+            centres.clear();
+            palmSince = -1;
+            setState(State.COOLDOWN, dx > 0 ? "swipe right" : "swipe left");
+            return out;
         }
         return out;
     }
@@ -381,15 +421,60 @@ public final class GestureEngine {
     private void fire(List<Cmd> out, Cmd c, long t) {
         out.add(c);
         log.log("engine: emit " + c);
+        winCommands++;
         long until = t + (long) tu.entryExtendMs;
         if (until > windowUntil) windowUntil = until;
     }
 
-    /** Forgets the swipe buffer and any swipe waiting for confirmation. */
-    private void dropSwipe() {
-        if (pendingSwipe != null) log.log("engine: swipe dropped, hand left view");
-        pendingSwipe = null;
-        centres.clear();
+    /** A reached stroke waiting for confirmation is dropped: the hand left. */
+    private void dropStroke() {
+        if (pendingStroke != null) rejLeft = true;
+        pendingStroke = null;
+        pendingLeft = 0;
+    }
+
+    // ---- window diagnostics ------------------------------------------------------
+
+    private void openWindow() {
+        windowOpen = true;
+        winCommands = 0;
+        winSeen = false;
+        winMaxBox = 0;
+        rejMute = rejLeft = rejNotLevel = false;
+    }
+
+    private void noteWindow(double x, double y, double box) {
+        if (!winSeen) {
+            winSeen = true;
+            winMinX = winMaxX = x;
+            winMinY = winMaxY = y;
+        }
+        winMinX = Math.min(winMinX, x); winMaxX = Math.max(winMaxX, x);
+        winMinY = Math.min(winMinY, y); winMaxY = Math.max(winMaxY, y);
+        winMaxBox = Math.max(winMaxBox, box);
+    }
+
+    /**
+     * Logs the end of a listening window. With no command, one line with how
+     * far the hand moved, how big it got, and the closest miss.
+     */
+    private void closeWindow(boolean handStillHere) {
+        windowOpen = false;
+        if (winCommands > 0) {
+            log.log("window: closed after " + winCommands + " command" + (winCommands == 1 ? "" : "s")
+                    + (handStillHere ? ", dormant until the hand leaves" : ""));
+            return;
+        }
+        double dx = winSeen ? winMaxX - winMinX : 0, dy = winSeen ? winMaxY - winMinY : 0;
+        String reason;
+        if (rejMute) reason = "after_palm_mute";
+        else if (rejLeft) reason = "left_view";
+        else if (rejNotLevel) reason = "not_level";
+        else if (winSeen && winMaxBox < tu.minBoxHeight) reason = "box_small";
+        else if (dy >= tu.strokeMinTravel || dx >= tu.swipeMinDx) reason = "too_slow";
+        else reason = "none_seen";
+        log.log(String.format(Locale.ROOT, "window: no command; max_dx=%.2f max_dy=%.2f max_box=%.2f reject=%s",
+                dx, dy, winMaxBox, reason));
     }
 
     // ---- hand shape ------------------------------------------------------------
@@ -431,7 +516,7 @@ public final class GestureEngine {
         state = s;
     }
 
-    /** Drops the hand: arming, buffers, a waiting swipe and a palm hold in
+    /** Drops the hand: arming, buffers, a waiting stroke and a palm hold in
      *  progress. A fired palm's latch is deliberately kept; it clears only
      *  when the hand stops being an open palm on armed frames or has been gone
      *  for palmUnlatchAbsentMs, so a size dropout under a still palm cannot
@@ -441,7 +526,8 @@ public final class GestureEngine {
         lastGoodFrame = -1;
         sizeLatched = false;
         strokeBuf.clear();
-        dropSwipe();
+        dropStroke();
+        centres.clear();
         fullSince = -1;
         palmSince = -1;
         notPalmSince = -1;

@@ -43,8 +43,9 @@ public final class Tuning {
     /** Once armed, strokes keep tracking the hand down to this box height:
      *  the hand shrinks and half leaves the frame at the bottom of a stroke. */
     public volatile double strokeMinBox = 0.08;
-    /** Buffer of hand centres a stroke is measured over. */
-    public volatile double strokeWindowMs = 500;
+    /** Buffer of hand centres a stroke is measured over: a stroke is a fast
+     *  flick; settling into position is slower and must not count. */
+    public volatile double strokeWindowMs = 300;
     /** Vertical travel of the hand centre that makes a stroke. */
     public volatile double strokeMinTravel = 0.08;
     /** Vertical travel must exceed this multiple of the horizontal. */
@@ -54,18 +55,24 @@ public final class Tuning {
     /** A stroke does not fire while the hand box is bigger than this: that is
      *  a hand reaching to touch the screen. */
     public volatile double strokeMaxBox = 0.55;
+    /** No stroke fires within this long after a play or pause: the hand
+     *  leaving after a palm hold is not a volume change. */
+    public volatile double strokeAfterPalmMuteMs = 700;
 
     // ---- swipe (next, previous) ---------------------------------------------
     /** Horizontal travel of the hand centre needed for a swipe. */
     public volatile double swipeMinDx = 0.14;
     /** ...within this time. */
     public volatile double swipeWindowMs = 450;
-    /** Vertical travel must stay under this fraction of the horizontal. */
-    public volatile double swipeMaxDyRatio = 0.5;
+    /** Vertical travel, net and at any point of the swipe, must stay under
+     *  this fraction of the horizontal: a swipe is level, a hand leaving the
+     *  view down and sideways is not. */
+    public volatile double swipeMaxDyRatio = 0.35;
     /** Quiet period after a swipe. */
     public volatile double swipeCooldownMs = 600;
     /** A swipe is measured only from points where the hand had already been
-     *  in view, box above minBoxHeightHold, for this long. */
+     *  in view, box above minBoxHeightHold, for this long. After the distance
+     *  is reached the hand may leave the frame: a real swipe sweeps out. */
     public volatile double swipeMinPresentMs = 150;
 
     // ---- open palm hold (play, pause) -----------------------------------------
@@ -122,6 +129,7 @@ public final class Tuning {
         new Param("strokeVerticalRatio", "Stroke: vertical over horizontal", 1.0, 4.0, 0.1),
         new Param("strokeRefractoryMs", "Stroke: quiet after a stroke ms", 0, 1500, 50),
         new Param("strokeMaxBox", "Stroke: max hand height", 0.20, 1.00, 0.01),
+        new Param("strokeAfterPalmMuteMs", "Stroke: muted after play/pause ms", 0, 2000, 50),
         new Param("swipeMinDx", "Swipe: min travel", 0.10, 0.70, 0.01),
         new Param("swipeWindowMs", "Swipe: window ms", 150, 1000, 10),
         new Param("swipeMaxDyRatio", "Swipe: max vertical ratio", 0.1, 1.0, 0.05),
@@ -143,6 +151,7 @@ public final class Tuning {
             case "entryWindowMs": return entryWindowMs;
             case "entryExtendMs": return entryExtendMs;
             case "strokeMaxBox": return strokeMaxBox;
+            case "strokeAfterPalmMuteMs": return strokeAfterPalmMuteMs;
             case "swipeMinPresentMs": return swipeMinPresentMs;
             case "palmMinBox": return palmMinBox;
             case "palmMinWidth": return palmMinWidth;
@@ -175,6 +184,7 @@ public final class Tuning {
             case "entryWindowMs": entryWindowMs = v; break;
             case "entryExtendMs": entryExtendMs = v; break;
             case "strokeMaxBox": strokeMaxBox = v; break;
+            case "strokeAfterPalmMuteMs": strokeAfterPalmMuteMs = v; break;
             case "swipeMinPresentMs": swipeMinPresentMs = v; break;
             case "palmMinBox": palmMinBox = v; break;
             case "palmMinWidth": palmMinWidth = v; break;

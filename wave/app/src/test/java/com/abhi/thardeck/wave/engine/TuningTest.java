@@ -46,14 +46,15 @@ public class TuningTest {
         assertEquals(400, t.lostGraceMs, 1e-9);
         assertFalse(t.strokeInvert);
         assertEquals(0.08, t.strokeMinBox, 1e-9);
-        assertEquals(500, t.strokeWindowMs, 1e-9);
+        assertEquals(300, t.strokeWindowMs, 1e-9);
         assertEquals(0.08, t.strokeMinTravel, 1e-9);
         assertEquals(1.5, t.strokeVerticalRatio, 1e-9);
         assertEquals(300, t.strokeRefractoryMs, 1e-9);
         assertEquals(0.55, t.strokeMaxBox, 1e-9);
+        assertEquals(700, t.strokeAfterPalmMuteMs, 1e-9);
         assertEquals(0.14, t.swipeMinDx, 1e-9);
         assertEquals(450, t.swipeWindowMs, 1e-9);
-        assertEquals(0.5, t.swipeMaxDyRatio, 1e-9);
+        assertEquals(0.35, t.swipeMaxDyRatio, 1e-9);
         assertEquals(150, t.swipeMinPresentMs, 1e-9);
         assertEquals(600, t.swipeCooldownMs, 1e-9);
         assertEquals(800, t.palmHoldMs, 1e-9);
