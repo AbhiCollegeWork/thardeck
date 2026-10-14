@@ -80,11 +80,20 @@ public class GestureService extends Service {
     // ---- commands ------------------------------------------------------------
 
     /** From the engine or the simulation hook. Any thread. */
-    void command(Cmd c, String source) {
+    void command(final Cmd c, String source) {
         Wave.lastCommand = c + " (" + source + ") at " + Wave.now();
         Wave.log("command: " + c + " from " + source);
-        hud.command(c);
-        sender.send(c.name());
+        // With a phone known the command goes straight out, so show it now.
+        // Otherwise wait to hear whether discovery found one: a driver who
+        // sees "Volume +" keeps trying, one who sees "No phone" stops.
+        final boolean known = sender.hasTarget();
+        if (known) hud.command(c);
+        sender.send(c.name(), new CommandSender.Result() {
+            @Override public void done(boolean sent) {
+                if (!sent) hud.noPhone();
+                else if (!known) hud.command(c);
+            }
+        });
     }
 
     /** Simulation hook entry: straight to the sender and the HUD. */

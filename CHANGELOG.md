@@ -40,6 +40,19 @@ Document versioning: the `VERSION` file sets the version stamped on every issued
   to touch the screen, swipes that fire one frame late and only with the hand
   still in view, and a durable drive log on the tablet (`wave-events.log`,
   2 MB rotation). 44 unit tests.
+- **Wave, from the first analysable drive (9 Oct):** night mode no longer
+  oscillates. The exposure boost had been brightening the next frame past the
+  exit threshold, so night switched off within a second every time; the
+  decision now uses scene brightness computed from the camera's reported
+  exposure time and ISO, held for 30 s per mode with no re-entry inside 60 s,
+  as a pure-Java class with its own tests. The log rotates at 4 MB with two
+  old files and the status line is written every 30 s, after 5 s lines had
+  rotated the start of the drive away. When a command cannot be sent the HUD
+  shows "No phone" instead of the command, and each discovery logs the
+  tablet's own address and gateway (never the network name). The drive itself
+  showed every one of 88 commands dropped because the tablet was on the home
+  network, not the phone's hotspot; the engine's entry gate rejected 469 of
+  557 windows for the right reasons. 56 unit tests.
 - **Companion:** a durable event log on the phone (`thardeck-events.log`),
   after the adb-spawned capture silently died and lost a drive. The tapper fix
   was verified unlocked: stop, start, stop each in one read, one click, one

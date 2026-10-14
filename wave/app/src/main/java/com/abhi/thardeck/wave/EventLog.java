@@ -22,13 +22,15 @@ import java.util.concurrent.Executors;
  *
  *   adb pull /sdcard/Android/data/com.abhi.thardeck.wave/files/wave-events.log
  *
- * At 2 MB the file is renamed to wave-events.1.log, replacing the one before,
- * and a new one is started. Writes happen on one background thread, in order.
+ * At 4 MB the file is renamed to wave-events.1.log, the one before that moves
+ * to wave-events.2.log, the oldest is dropped, and a new one is started, so
+ * about 12 MB is kept. Writes happen on one background thread, in order.
  */
 final class EventLog {
     static final String NAME = "wave-events.log";
     static final String OLD = "wave-events.1.log";
-    static final long MAX_BYTES = 2L * 1024 * 1024;
+    static final String OLDER = "wave-events.2.log";
+    static final long MAX_BYTES = 4L * 1024 * 1024;
 
     private static volatile File dir;
     private static final ExecutorService writer = Executors.newSingleThreadExecutor();
@@ -72,8 +74,9 @@ final class EventLog {
 
     private static void rotate() throws java.io.IOException {
         closeQuietly();
-        File f = new File(dir, NAME), old = new File(dir, OLD);
-        if (old.exists()) old.delete();
+        File f = new File(dir, NAME), old = new File(dir, OLD), older = new File(dir, OLDER);
+        if (older.exists()) older.delete();
+        if (old.exists()) old.renameTo(older);
         f.renameTo(old);
         open();
     }

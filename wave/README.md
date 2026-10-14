@@ -144,10 +144,29 @@ same frame; a hand found then lifts the rate to 15 fps as before. The gate is
 also held open while the Calibrate view is on screen. Transitions are logged
 once each (`gate: motion, landmarker on`, `gate: still, landmarker off`).
 
-Low light. The mean luma of the same 40x30 sample decides night mode: it
-starts below `darkLuma` (default 50) and ends above `darkLuma` plus 15, and each
-change is logged once (`light: night on, luma N`, `light: day, luma N`). In
-night mode:
+Low light. Night mode is decided on the scene, not on the frame the camera
+made of it (`engine/LightMode.java`). The 9 Oct drive showed the earlier
+frame-luma rule feeding back on itself: night mode's extra exposure brightened
+the next frame past the exit threshold, so it left at once, the frame darkened,
+and round again every 1 to 2 s. Now:
+
+- the camera reports the exposure time and ISO of each frame (it does on this
+  tablet), and the mean luma of the 40x30 sample is referred back, gamma
+  undone, to the luma the same scene would give at a fixed reference: the day
+  mode's longest exposure (66.7 ms, one frame at 15 fps) at the sensor's
+  highest ISO (2500). Compensation changes the exposure, not this scene
+  number. Night starts when the scene reads under `darkLuma` (50) and ends
+  when it reads over 65. Auto exposure sits at the reference as it gets dark
+  in day mode, so there the scene number equals the frame luma.
+- if a camera reports no exposure and ISO, the frame luma is used, and night
+  then ends only when the compensated frame reads over `darkLumaExit` (170).
+- either way each mode is held at least `nightMinDwellMs` (30 s), and night is
+  never re-entered within `nightReentryMs` (60 s) of leaving it.
+
+Each change is logged once (`light: night on, scene 31 (luma 31,
+exposure-referred)`), and every 30 s a line gives the scene number, the frame
+luma, the exposure and ISO, and the mode (`light: scene=533 luma=94
+exp=20.0ms iso=184 day`). In night mode:
 
 - exposure compensation goes to the top of the range the camera reports, and
   the auto exposure fps range goes to one with a lower floor, so the shutter
@@ -162,21 +181,27 @@ night mode:
 - the motion gate threshold is scaled by max(0.35, luma / 120), because
   differences shrink with the signal in the dark.
 
-The status screen and the calibrate view show `Light: day|night (luma N)`.
+The status screen shows `Light: day|night (scene N, luma N)` and the calibrate
+view `Light: day|night (luma N)`.
 
 The display rotation is followed live (the receiver turns the screen to
 landscape when projection starts), so the transform is right whenever the
 screen content is upright for the driver.
 
 **Drive log.** Every THARWAVE line (engine transitions and commands, entries
-and dormancy, discovery, light and gate transitions, and the 5 s stats line)
-is also appended to `wave-events.log` in the app's external files directory,
-with a timestamp. At 2 MB it becomes `wave-events.1.log`, replacing the one
-before, so about 4 MB is kept. To look at a drive afterwards:
+and dormancy, discovery and network state, light and gate transitions, and the
+30 s stats and light lines) is also appended to `wave-events.log` in the app's
+external files directory, with a timestamp. At 4 MB it becomes
+`wave-events.1.log`, the one before moves to `wave-events.2.log`, and the
+oldest is dropped, so about 12 MB is kept. The stats line was most of the file
+on the 9 Oct drive (every 5 s, a 2 MB file lasted about two hours); it is now
+every 30 s and shorter. The status screen still updates every 5 s. To look at
+a drive afterwards:
 
 ```
 adb pull /sdcard/Android/data/com.abhi.thardeck.wave/files/wave-events.log
 adb pull /sdcard/Android/data/com.abhi.thardeck.wave/files/wave-events.1.log
+adb pull /sdcard/Android/data/com.abhi.thardeck.wave/files/wave-events.2.log
 ```
 
 Any camera or landmarker error releases everything and retries after 2 s,
@@ -198,12 +223,29 @@ a wrong token silently.
 
 Discovery, first responder cached for ten minutes: PING the default gateway
 (the phone, on its own hotspot), then the subnet broadcast address (a shared
-home network), then a manual address if one is set. It re-probes on any Wi-Fi
-change. Commands are fire and forget; to notice a phone that has gone, each
-command is followed by a PING to the cached phone, and three commands in a row
-without a PONG drop the cache so the next command re-probes. With no phone
-found, discovery logs `no phone found` at info level and commands are logged as
-not sent.
+home network), then a manual address if one is set and it is on the tablet's
+current subnet (otherwise `manual address not on this subnet, skipped`). It
+re-probes on any Wi-Fi change. Commands are fire and forget; to notice a phone
+that has gone, each command is followed by a PING to the cached phone, and
+three commands in a row without a PONG drop the cache so the next command
+re-probes. With no phone found, discovery logs `no phone found` at info level
+and commands are logged as not sent.
+
+Every discovery attempt logs the tablet's own network in one line,
+`net: ssid-set=yes ip=a.b.c.d gateway=a.b.c.d wifi=on` (wifi is on, off or
+disconnected; a network name is present exactly when Wi-Fi is connected, and
+the name itself is never read or logged). When the gateway did not answer,
+`net: not on the phone's hotspot (gateway did not answer)` follows, once per
+network and at most once a minute. The app never switches networks. Android
+does not let an app read the tablet's list of saved networks, so whether the
+phone's hotspot is one of them cannot be checked. On the 9 Oct drive all 88
+commands went unsent because the tablet stayed on the home router; these lines
+make that plain in the drive log.
+
+When a command cannot be sent, the HUD shows "No phone" in amber for 1.2 s
+instead of the command, so the driver knows to stop trying. With a phone
+already found, the command shows at once; otherwise the HUD waits the second or
+so discovery takes, then shows the command or "No phone".
 
 ## Build
 
@@ -270,11 +312,13 @@ needed: the receiver is declared in the manifest, so the broadcast must be
 addressed to the package. The hook stays exported so adb can reach it; the
 token is what keeps other apps on the tablet from driving the phone through it.
 
-Logs are at tag `THARWAVE`: engine transitions and commands, discovery, sends,
-PONGs, HUD lines, camera state, the chosen transform, the delegate, gate
-transitions, and every five seconds
-`stats: analysed=N fps=F infer_ms=M hand=P% gate=on|off motion=AVG/MAX light=day|night luma=N`,
-where motion is the gate's reading over those five seconds.
+Logs are at tag `THARWAVE`: engine transitions and commands, discovery and
+network state, sends, PONGs, HUD lines, camera state, the chosen transform, the
+delegate, gate and light transitions, and every 30 s
+`stats: n=N fps=F inf=Mms hand=P% gate=on|off mot=AVG/MAX` (frames analysed in
+those 30 s, their rate, mean inference time, the share with a hand, whether
+the gate was on at any point, and the gate's motion reading, mean and peak)
+followed by the `light:` line above.
 
 ## Tuning
 
@@ -288,7 +332,8 @@ stroke (`strokeMinBox` 0.08, `strokeWindowMs` 300, `strokeMinTravel` 0.08,
 `swipeCooldownMs` 600, `swipeMinPresentMs` 150), palm
 (`palmHoldMs` 800, `palmMinBox` 0.30, `palmMinWidth` 0.45, `palmMaxTravel` 0.04,
 `palmReleaseMs` 300, `palmUnlatchAbsentMs` 1500) and camera (`motionMinDiff` 3,
-`darkLuma` 50).
+`darkLuma` 50, `darkLumaExit` 170, `nightMinDwellMs` 30000, `nightReentryMs`
+60000).
 
 The app screen has a slider for each (the hold height sits next to the arming
 height) and a switch for the stroke direction, applied live and saved, with a
@@ -310,8 +355,15 @@ matching horizontal travel in the stroke buffer.
 On the tablet, 29 Sep 2026, at a desk, tablet locked on its screensaver, the
 phone on the same home Wi-Fi running the companion relay:
 
-- Unit tests (`gradle test`): 49 of 49 pass, 43 for the engine and 6 for
-  the tuning.
+- Unit tests (`gradle test`): 56 of 56 pass, 43 for the engine, 7 for the
+  light decision and 6 for the tuning.
+  - Light: at the reference exposure the scene number equals the luma; a
+    night entered at luma 21 whose next frames read brighter only because of
+    +2 EV stays night, and the scene still reads 21; a frame of 215 straight
+    after entering does not end night, with or without exposure metadata,
+    for the whole 30 s dwell; the 10 Oct dawn case (in at 40, compensated
+    frames at 68 for three minutes, no metadata) holds; night is not
+    re-entered within 60 s of leaving; each mode is held for the dwell.
   - Entry: a hand that appears as a large flat palm and stays still for 2 s
     gives exactly one `PLAY_PAUSE`; it then closes, stays in view, and opens
     again about 5 s after entering: dormant, nothing; after 1 s out of view
@@ -385,8 +437,17 @@ phone on the same home Wi-Fi running the companion relay:
   hotspot, the phone answered the gateway PING, the first probe. With a wrong token the phone
   dropped everything: after three unanswered commands the sender re-probed,
   logged `no phone found` at info level, and logged later commands as not sent.
-- Low light, on a build with the same pipeline code as this one and a
-  temporary adb extra that raised `darkLuma` in memory only (since removed):
+- Light decision, on the tablet, 14 Oct, at the desk in daylight: the camera
+  reports exposure and ISO for each frame (`light: scene=533 luma=94
+  exp=20.0ms iso=184 day`), so the exposure-referred path is in use, with the
+  reference read from the sensor as 66.7 ms at ISO 2500 (ISO range [40, 2500],
+  exposure range up to 125 ms). The forced-night check below was on the
+  earlier frame-luma rule and was not repeated.
+- Network and HUD, on the tablet, 14 Oct: on home Wi-Fi the startup logged
+  `net: ssid-set=yes ip=... gateway=... wifi=on`, then `net: not on the
+  phone's hotspot (gateway did not answer)`. A real swipe at the tablet then
+  logged `send: PREV not sent, no phone found` and `hud: No phone`.
+- Low light, on an earlier build and a temporary adb extra that raised `darkLuma` in memory only (since removed):
   - at camera open: `exposure compensation range [-20, 20] index, step 1/10
     EV; AE fps ranges [[15, 15], [15, 20], [20, 20], [24, 24], [8, 30],
     [10, 30], [15, 30], [30, 30]]; night range [8, 30]`.
@@ -413,9 +474,12 @@ phone on the same home Wi-Fi running the companion relay:
 
 ## Limitations
 
-- Night mode is untested in real darkness. The bench check forced it in a lit
-  room; whether the extra exposure, the lower fps floor and the gamma lift let
-  the tracker find a hand at night has not been seen.
+- Night mode is untested in real darkness, and the exposure-referred scene
+  number has only been seen in daylight. The scene threshold equals the old
+  luma threshold only while auto exposure sits at the reference (66.7 ms, ISO
+  2500); if this camera's auto exposure stops short of the top ISO as it gets
+  dark, night will start a little early. The next drive log's 30 s `light:`
+  lines will show the real values to set `darkLuma` by.
 - A desk session with the gated build (owner's hand, drive log) showed the
   entry gate and the palm hold working: two clean play and pause, and nothing
   during a 20 s resting hand. It also showed volume firing as the hand left the

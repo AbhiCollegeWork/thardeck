@@ -100,9 +100,19 @@ public final class Tuning {
      *  of a 40x30 grid that counts as motion and wakes the landmarker. In night
      *  mode it is scaled down with the scene brightness. */
     public volatile double motionMinDiff = 3;
-    /** Mean luma of the 40x30 sample below which night mode starts; it ends
-     *  above this plus 15. */
+    /** Night mode starts when the scene reads below this luma, and ends when
+     *  it reads above this plus 15. The scene number is the frame luma
+     *  referred back to a fixed exposure (see LightMode), so night mode's own
+     *  extra exposure cannot end it. */
     public volatile double darkLuma = 50;
+    /** Fallback when the camera reports no exposure and ISO: night ends when
+     *  the compensated frame reads above this (+2 EV lifts a luma 45 scene to
+     *  about 180). */
+    public volatile double darkLumaExit = 170;
+    /** Each light mode is held at least this long. */
+    public volatile double nightMinDwellMs = 30000;
+    /** Night is never re-entered within this long of leaving it. */
+    public volatile double nightReentryMs = 60000;
 
     // ---- keyed access for the settings screen and persistence ----------------
 
@@ -142,7 +152,10 @@ public final class Tuning {
         new Param("palmReleaseMs", "Palm: re-arm after not palm ms", 50, 2000, 50),
         new Param("palmUnlatchAbsentMs", "Palm: re-arm after hand gone ms", 300, 5000, 100),
         new Param("motionMinDiff", "Gate: motion to wake", 0.5, 30, 0.5),
-        new Param("darkLuma", "Light: night below luma", 0, 255, 1),
+        new Param("darkLuma", "Light: night below scene luma", 0, 255, 1),
+        new Param("darkLumaExit", "Light: no metadata, day above luma", 0, 255, 1),
+        new Param("nightMinDwellMs", "Light: hold each mode ms", 0, 120000, 1000),
+        new Param("nightReentryMs", "Light: no night again within ms", 0, 300000, 5000),
     };
 
     public double get(String key) {
@@ -174,6 +187,9 @@ public final class Tuning {
             case "palmUnlatchAbsentMs": return palmUnlatchAbsentMs;
             case "motionMinDiff": return motionMinDiff;
             case "darkLuma": return darkLuma;
+            case "darkLumaExit": return darkLumaExit;
+            case "nightMinDwellMs": return nightMinDwellMs;
+            case "nightReentryMs": return nightReentryMs;
             default: throw new IllegalArgumentException("unknown tuning key " + key);
         }
     }
@@ -207,6 +223,9 @@ public final class Tuning {
             case "palmUnlatchAbsentMs": palmUnlatchAbsentMs = v; break;
             case "motionMinDiff": motionMinDiff = v; break;
             case "darkLuma": darkLuma = v; break;
+            case "darkLumaExit": darkLumaExit = v; break;
+            case "nightMinDwellMs": nightMinDwellMs = v; break;
+            case "nightReentryMs": nightReentryMs = v; break;
             default: throw new IllegalArgumentException("unknown tuning key " + key);
         }
     }

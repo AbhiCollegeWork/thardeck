@@ -65,6 +65,9 @@ public class TuningTest {
         assertEquals(1500, t.palmUnlatchAbsentMs, 1e-9);
         assertEquals(3.0, t.motionMinDiff, 1e-9);
         assertEquals(50, t.darkLuma, 1e-9);
+        assertEquals(170, t.darkLumaExit, 1e-9);
+        assertEquals(30000, t.nightMinDwellMs, 1e-9);
+        assertEquals(60000, t.nightReentryMs, 1e-9);
     }
 
     @Test public void resetRestoresStrokeDirection() {

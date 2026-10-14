@@ -43,6 +43,8 @@ public final class Wave {
      *  exposure time the camera last reported. */
     public static volatile boolean night;
     public static volatile int luma;
+    /** The scene number the light decision uses (see LightMode). */
+    public static volatile float scene;
     public static volatile float exposureMs;
 
     /** Set while the calibrate view is on screen. */

@@ -356,8 +356,8 @@ public class MainActivity extends Activity {
                 Wave.analysedFps, Wave.inferMs, Wave.delegate)).append('\n');
         b.append(String.format(Locale.ROOT, "Presence gate: %s, motion %.1f (wakes above %.1f)",
                 Wave.gateOn ? "on" : "off", Wave.motion, Wave.TUNING.motionMinDiff)).append('\n');
-        b.append(String.format(Locale.ROOT, "Light: %s (luma %d), exposure %.1f ms",
-                Wave.night ? "night" : "day", Wave.luma, Wave.exposureMs)).append('\n');
+        b.append(String.format(Locale.ROOT, "Light: %s (scene %.0f, luma %d), exposure %.1f ms",
+                Wave.night ? "night" : "day", Wave.scene, Wave.luma, Wave.exposureMs)).append('\n');
         b.append("Hand present: ").append(Wave.handPresent ? "yes" : "no")
                 .append(" (").append(Wave.handPct).append("% of last 5 s)").append('\n');
         b.append("Last command: ").append(Wave.lastCommand).append('\n');

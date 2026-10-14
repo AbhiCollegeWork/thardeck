@@ -36,6 +36,7 @@ import androidx.lifecycle.Observer;
 import com.abhi.thardeck.wave.engine.Cmd;
 import com.abhi.thardeck.wave.engine.GestureEngine;
 import com.abhi.thardeck.wave.engine.HandFrame;
+import com.abhi.thardeck.wave.engine.LightMode;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
@@ -88,6 +89,9 @@ final class Pipeline implements LifecycleOwner {
     static final long IDLE_INTERVAL_MS = 200;  // 5 fps
     static final long HAND_RECENT_MS = 2000;
     static final long STATS_MS = 5000;
+    /** The stats and light lines go to the log this often; the status screen
+     *  still updates every STATS_MS. */
+    static final int LOG_EVERY_TICKS = 6;
     static final long WATCHDOG_MS = 10_000;
     static final long BACKOFF_MIN_MS = 2000, BACKOFF_MAX_MS = 30_000;
 
@@ -310,6 +314,7 @@ final class Pipeline implements LifecycleOwner {
                 Range<Integer> fps = pickFpsRange(ranges);
                 dayRange = fps;
                 nightRange = pickNightRange(ranges, fps);
+                if (lightMode == null) lightMode = newLightMode(fps);
                 Camera2Interop.Extender<ImageAnalysis> ext = new Camera2Interop.Extender<>(b);
                 if (fps != null) {
                     ext.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
@@ -363,6 +368,37 @@ final class Pipeline implements LifecycleOwner {
         }
     };
 
+    /**
+     * The light decision, referred to the day mode's longest exposure (one
+     * frame at its fps floor, within the sensor's limit) at the sensor's
+     * highest ISO. Unknown limits leave it on the luma fallback.
+     */
+    private LightMode newLightMode(Range<Integer> day) {
+        double refExp = 0, refIso = 0;
+        try {
+            CameraManager cm = ctx.getSystemService(CameraManager.class);
+            for (String id : cm.getCameraIdList()) {
+                CameraCharacteristics ch = cm.getCameraCharacteristics(id);
+                Integer facing = ch.get(CameraCharacteristics.LENS_FACING);
+                if (facing == null || facing != CameraCharacteristics.LENS_FACING_FRONT) continue;
+                Range<Integer> isoRange = ch.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
+                Range<Long> expRange = ch.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
+                if (isoRange != null) refIso = isoRange.getUpper();
+                refExp = day != null && day.getLower() > 0 ? 1000.0 / day.getLower() : 0;
+                if (expRange != null && refExp > 0) refExp = Math.min(refExp, expRange.getUpper() / 1_000_000.0);
+                Wave.log(String.format(java.util.Locale.ROOT,
+                        "light: scene referred to %.1f ms at ISO %.0f (sensor ISO range %s, exposure range %s)",
+                        refExp, refIso, isoRange, expRange == null ? "unknown"
+                                : String.format(java.util.Locale.ROOT, "[%.3f, %.1f] ms",
+                                        expRange.getLower() / 1e6, expRange.getUpper() / 1e6)));
+                break;
+            }
+        } catch (Throwable t) {
+            Wave.log("light: could not read sensor limits, luma fallback: " + t.getMessage());
+        }
+        return new LightMode(tuning, refExp, refIso);
+    }
+
     /** The front camera's available AE target fps ranges, or null. */
     @SuppressWarnings("unchecked")
     private Range<Integer>[] aeRanges() {
@@ -414,6 +450,7 @@ final class Pipeline implements LifecycleOwner {
     }
 
     // What the camera actually applied, logged whenever it changes.
+    private volatile double lastExposureMs = Double.NaN, lastIso = Double.NaN;
     private volatile Range<Integer> appliedRange;
     private volatile Integer appliedEv;
 
@@ -424,7 +461,11 @@ final class Pipeline implements LifecycleOwner {
             Range<Integer> r = res.get(android.hardware.camera2.CaptureResult.CONTROL_AE_TARGET_FPS_RANGE);
             Integer ev = res.get(android.hardware.camera2.CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION);
             Long exp = res.get(android.hardware.camera2.CaptureResult.SENSOR_EXPOSURE_TIME);
+            Integer iso = res.get(android.hardware.camera2.CaptureResult.SENSOR_SENSITIVITY);
             if (exp != null) Wave.exposureMs = exp / 1_000_000f;
+            // What the light decision divides by; NaN when the camera omits it.
+            lastExposureMs = exp == null ? Double.NaN : exp / 1_000_000.0;
+            lastIso = iso == null ? Double.NaN : iso;
             boolean changed = (r != null && !r.equals(appliedRange))
                     || (ev != null && !ev.equals(appliedEv));
             if (!changed) return;
@@ -597,7 +638,6 @@ final class Pipeline implements LifecycleOwner {
 
     // ---- low light ------------------------------------------------------------------
 
-    static final int DARK_HYSTERESIS = 15;
     /** Gamma 0.5 lift for the Y plane in night mode, precomputed. */
     private static final int[] GAMMA_LUT = new int[256];
     static {
@@ -610,15 +650,21 @@ final class Pipeline implements LifecycleOwner {
     private int[] liftArgb;
     private Bitmap liftBitmap;
     private Range<Integer> dayRange, nightRange;
+    private volatile LightMode lightMode;
 
-    /** Analysis thread. Night starts under darkLuma and ends above it plus 15. */
+    /** Analysis thread. The decision is LightMode's: on the scene, with a
+     *  minimum dwell and no quick re-entry. */
     private void updateLight(int luma) {
-        boolean was = night;
-        if (!night && luma < tuning.darkLuma) night = true;
-        else if (night && luma > tuning.darkLuma + DARK_HYSTERESIS) night = false;
+        LightMode lm = lightMode;
+        if (lm == null) return;
+        boolean changed = lm.update(SystemClock.uptimeMillis(), luma, lastExposureMs, lastIso);
+        night = lm.night();
         Wave.night = night;
-        if (night == was) return;
-        Wave.log(night ? "light: night on, luma " + luma : "light: day, luma " + luma);
+        Wave.scene = (float) lm.scene();
+        if (!changed) return;
+        Wave.log(String.format(java.util.Locale.ROOT, "light: %s, scene %.0f (luma %d, %s)",
+                night ? "night on" : "day", lm.scene(), luma,
+                lm.usedMetadata() ? "exposure-referred" : "luma fallback"));
         main.post(new Runnable() { @Override public void run() { applyLight(); } });
     }
 
@@ -797,11 +843,20 @@ final class Pipeline implements LifecycleOwner {
 
     // ---- stats and watchdog ------------------------------------------------------
 
+    // 30 s totals for the logged stats line, main thread only
+    private int tick, logA, logHand, logMotionN;
+    private long logInfer;
+    private double logMotionSum, logMotionMax;
+    private boolean logGateOn;
+
     private final Runnable stats = new Runnable() { @Override public void run() {
         if (!wanted) return;
         int a = analysed, hnd = withHand, cf = camFrames, mn = motionN;
         long inf = inferSum;
-        double mAvg = mn == 0 ? 0 : motionSum / mn, mMax = motionMax;
+        double mSum = motionSum, mMax = motionMax;
+        logA += a; logHand += hnd; logInfer += inf;
+        logMotionSum += mSum; logMotionN += mn; logMotionMax = Math.max(logMotionMax, mMax);
+        logGateOn |= gateOn;
         analysed = 0; withHand = 0; camFrames = 0; inferSum = 0;
         motionSum = 0; motionMax = 0; motionN = 0;
         float secs = STATS_MS / 1000f;
@@ -812,11 +867,26 @@ final class Pipeline implements LifecycleOwner {
         Wave.cameraFps = cf / secs;
         Wave.inferMs = inferMs;
         Wave.handPct = pct;
-        if (camera != null) {
+        if (camera != null && ++tick >= LOG_EVERY_TICKS) {
+            tick = 0;
+            float span = STATS_MS * LOG_EVERY_TICKS / 1000f;
+            // Over the last 30 s: frames analysed, their rate, mean inference,
+            // share with a hand, whether the gate was on at any point, and the
+            // gate's motion reading, mean and peak.
             Wave.log(String.format(java.util.Locale.ROOT,
-                    "stats: analysed=%d fps=%.1f infer_ms=%d hand=%d%% gate=%s motion=%.1f/%.1f light=%s luma=%d",
-                    a, fps, inferMs, pct, gateOn ? "on" : "off", mAvg, mMax,
-                    night ? "night" : "day", lastLuma));
+                    "stats: n=%d fps=%.1f inf=%dms hand=%d%% gate=%s mot=%.1f/%.1f",
+                    logA, logA / span, logA == 0 ? 0 : (int) (logInfer / logA),
+                    logA == 0 ? 0 : Math.round(100f * logHand / logA), logGateOn ? "on" : "off",
+                    logMotionN == 0 ? 0 : logMotionSum / logMotionN, logMotionMax));
+            LightMode lm = lightMode;
+            Wave.log(String.format(java.util.Locale.ROOT, "light: scene=%.0f luma=%d exp=%sms iso=%s %s%s",
+                    lm == null ? Double.NaN : lm.scene(), lastLuma,
+                    Double.isNaN(lastExposureMs) ? "?" : String.format(java.util.Locale.ROOT, "%.1f", lastExposureMs),
+                    Double.isNaN(lastIso) ? "?" : String.format(java.util.Locale.ROOT, "%.0f", lastIso),
+                    night ? "night" : "day",
+                    lm != null && !lm.usedMetadata() ? " (luma fallback)" : ""));
+            logA = 0; logHand = 0; logInfer = 0; logMotionSum = 0; logMotionN = 0; logMotionMax = 0;
+            logGateOn = false;
             // Healthy means frames are flowing; with the gate off the
             // landmarker may legitimately analyse nothing.
             if (cf > 0) backoff = BACKOFF_MIN_MS;

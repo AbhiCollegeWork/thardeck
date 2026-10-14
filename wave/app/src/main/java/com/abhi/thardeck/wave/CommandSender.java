@@ -5,6 +5,8 @@ import android.net.ConnectivityManager;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
 import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.wifi.WifiManager;
 import android.net.RouteInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -102,10 +104,19 @@ final class CommandSender {
         publish();
     }
 
+    /** Told whether a command went out, so the HUD can say "No phone". */
+    interface Result { void done(boolean sent); }
+
+    /** True when a phone is known, so a command will go straight out. */
+    boolean hasTarget() { return target != null; }
+
     /** Queue a protocol command (VOL_UP, NEXT, ...) for sending. */
-    void send(final String cmd) {
-        if (!running) return;
-        h.post(new Runnable() { @Override public void run() { doSend(cmd); } });
+    void send(final String cmd, final Result result) {
+        if (!running) { if (result != null) result.done(false); return; }
+        h.post(new Runnable() { @Override public void run() {
+            boolean sent = doSend(cmd);
+            if (result != null) result.done(sent);
+        }});
     }
 
     /** Forget the cached phone and probe again, now. */
@@ -127,7 +138,8 @@ final class CommandSender {
 
     // ---- sender thread -----------------------------------------------------------
 
-    private void doSend(String cmd) {
+    /** @return true if the command went out to a phone. */
+    private boolean doSend(String cmd) {
         if (target != null && unanswered.get() >= MAX_UNANSWERED) {
             Wave.log("relay: " + MAX_UNANSWERED + " commands without a PONG, re-probing");
             target = null;
@@ -137,16 +149,16 @@ final class CommandSender {
             if (SystemClock.uptimeMillis() - lastFailedDiscovery < FAILED_QUIET_MS
                     || !discover("command " + cmd)) {
                 Wave.log("send: " + cmd + " not sent, no phone found");
-                return;
+                return false;
             }
         }
         InetAddress t = target;
-        if (t == null) return;
-        if (sendRaw(cmd, t)) {
-            Wave.log("send: " + cmd + " -> " + t.getHostAddress() + ":" + PORT);
-            sendRaw("PING", t); // liveness check, the answer resets the counter
-            unanswered.incrementAndGet();
-        }
+        if (t == null) return false;
+        if (!sendRaw(cmd, t)) return false;
+        Wave.log("send: " + cmd + " -> " + t.getHostAddress() + ":" + PORT);
+        sendRaw("PING", t); // liveness check, the answer resets the counter
+        unanswered.incrementAndGet();
+        return true;
     }
 
     /**
@@ -160,11 +172,20 @@ final class CommandSender {
         h.removeCallbacks(expire);
         InetAddress[] cand = new InetAddress[3];
         String[] label = {"gateway", "broadcast", "manual"};
-        findLocal(cand);
+        Local loc = findLocal();
+        logNet(loc);
+        cand[0] = loc.gateway;
+        cand[1] = loc.broadcast;
         String manual = Wave.manualAddress(ctx);
         if (!manual.isEmpty()) {
-            try { cand[2] = InetAddress.getByName(manual); }
-            catch (Exception e) { Wave.log("discovery: manual address does not resolve: " + e.getMessage()); }
+            try {
+                InetAddress m = InetAddress.getByName(manual);
+                // Only where it could answer: on the subnet the tablet is on.
+                if (loc.sameSubnet(m)) cand[2] = m;
+                else Wave.log("discovery: manual address not on this subnet, skipped");
+            } catch (Exception e) {
+                Wave.log("discovery: manual address does not resolve: " + e.getMessage());
+            }
         }
 
         StringBuilder tried = new StringBuilder();
@@ -199,37 +220,93 @@ final class CommandSender {
         target = null;
         lastFailedDiscovery = SystemClock.uptimeMillis();
         publish();
+        notOnHotspot(loc);
         // Expected at a desk without the phone: an info line, not an error.
         Wave.log("discovery (" + why + "): no phone found, tried " + tried
                 + ". Commands are not sent until a phone answers.");
         return false;
     }
 
-    /** Default gateway and subnet broadcast of the active network, IPv4. */
-    private void findLocal(InetAddress[] out) {
+    /** The tablet's own network, as discovery sees it. */
+    static final class Local {
+        String wifi = "off";        // on, off, or disconnected
+        Inet4Address ip;            // the tablet's IPv4 address, or null
+        int prefix;                 // its prefix length
+        InetAddress gateway;        // default gateway, IPv4, or null
+        InetAddress broadcast;      // subnet broadcast, or null
+
+        boolean sameSubnet(InetAddress a) {
+            if (ip == null || !(a instanceof Inet4Address)) return false;
+            int mask = prefix == 0 ? 0 : (int) (0xFFFFFFFFL << (32 - prefix));
+            int mine = ByteBuffer.wrap(ip.getAddress()).getInt();
+            int theirs = ByteBuffer.wrap(a.getAddress()).getInt();
+            return (mine & mask) == (theirs & mask);
+        }
+    }
+
+    /** Wi-Fi state, own address, default gateway and subnet broadcast. */
+    private Local findLocal() {
+        Local l = new Local();
         try {
+            WifiManager wm = ctx.getSystemService(WifiManager.class);
             ConnectivityManager cm = ctx.getSystemService(ConnectivityManager.class);
             Network n = cm == null ? null : cm.getActiveNetwork();
+            NetworkCapabilities caps = n == null ? null : cm.getNetworkCapabilities(n);
+            boolean onWifi = caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+            l.wifi = wm != null && !wm.isWifiEnabled() ? "off" : onWifi ? "on" : "disconnected";
             LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
-            if (lp == null) { Wave.log("discovery: no active network"); return; }
+            if (lp == null) return l;
             for (RouteInfo r : lp.getRoutes()) {
                 if (r.isDefaultRoute() && r.hasGateway() && r.getGateway() instanceof Inet4Address) {
-                    out[0] = r.getGateway();
+                    l.gateway = r.getGateway();
                     break;
                 }
             }
             for (LinkAddress la : lp.getLinkAddresses()) {
                 if (!(la.getAddress() instanceof Inet4Address)) continue;
-                int prefix = la.getPrefixLength();
-                int ip = ByteBuffer.wrap(la.getAddress().getAddress()).getInt();
-                int mask = prefix == 0 ? 0 : (int) (0xFFFFFFFFL << (32 - prefix));
-                int bc = ip | ~mask;
-                out[1] = InetAddress.getByAddress(ByteBuffer.allocate(4).putInt(bc).array());
+                l.ip = (Inet4Address) la.getAddress();
+                l.prefix = la.getPrefixLength();
+                int ip = ByteBuffer.wrap(l.ip.getAddress()).getInt();
+                int mask = l.prefix == 0 ? 0 : (int) (0xFFFFFFFFL << (32 - l.prefix));
+                l.broadcast = InetAddress.getByAddress(ByteBuffer.allocate(4).putInt(ip | ~mask).array());
                 break;
             }
         } catch (Throwable t) {
             Wave.log("discovery: could not read network: " + t);
         }
+        return l;
+    }
+
+    /**
+     * One line per discovery attempt with the tablet's own network state. A
+     * network name is present exactly when Wi-Fi is connected; the name
+     * itself is never read or logged.
+     */
+    private static void logNet(Local l) {
+        Wave.log("net: ssid-set=" + ("on".equals(l.wifi) ? "yes" : "no")
+                + " ip=" + (l.ip == null ? "none" : l.ip.getHostAddress())
+                + " gateway=" + (l.gateway == null ? "none" : l.gateway.getHostAddress())
+                + " wifi=" + l.wifi);
+    }
+
+    private String hotspotNoteKey;
+    private long hotspotNoteAt = Long.MIN_VALUE / 4;
+
+    /**
+     * After a failed discovery on Wi-Fi: the gateway is not the phone, so the
+     * tablet is not on the phone's hotspot. Said once per network, again at
+     * most every minute. Nothing is done about it: the app never switches
+     * networks. Android does not let an app read the list of saved networks,
+     * so whether the hotspot is one of them cannot be checked here.
+     */
+    private void notOnHotspot(Local l) {
+        if (!"on".equals(l.wifi) || l.gateway == null) return;
+        String key = l.gateway.getHostAddress() + "/" + (l.ip == null ? "" : l.ip.getHostAddress());
+        long now = SystemClock.uptimeMillis();
+        if (key.equals(hotspotNoteKey) && now - hotspotNoteAt < 60_000) return;
+        hotspotNoteKey = key;
+        hotspotNoteAt = now;
+        Wave.log("net: not on the phone's hotspot (gateway did not answer)");
     }
 
     private boolean sendRaw(String cmd, InetAddress to) {

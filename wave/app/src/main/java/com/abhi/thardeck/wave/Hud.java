@@ -24,7 +24,8 @@ import com.abhi.thardeck.wave.engine.Cmd;
  * It is only attached while it has something to show, so there is no
  * persistent chrome over the projection. In order of priority:
  *   a command shows for 900 ms: an icon and a word for next, previous and
- *   play or pause, a round bubble with a plus or minus for a volume step
+ *   play or pause, a round bubble with a plus or minus for a volume step;
+ *   a command that could not be sent shows "No phone" in amber for 1.2 s
  *   a palm hold in progress shows a ring filling over the hold time, so the
  *   driver sees play or pause coming and can move the hand to cancel it
  *   while the engine is listening after a hand entered, a small dot
@@ -36,6 +37,7 @@ import com.abhi.thardeck.wave.engine.Cmd;
  */
 final class Hud {
     static final long FLASH_MS = 900;
+    static final long NO_PHONE_MS = 1200;
 
     private final Context ctx;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -46,6 +48,7 @@ final class Hud {
     // what there is to show, main thread only
     private long flashUntil = 0;
     private Cmd flashCmd;
+    private long noPhoneUntil = 0;
     private long listenUntil = 0;
     private float palmProgress = 0;
     // the preview's own state, so live engine frames cannot cut it short
@@ -69,6 +72,16 @@ final class Hud {
         }});
     }
 
+    /** A command could not be sent: no phone answered. Any thread. */
+    void noPhone() {
+        main.post(new Runnable() { @Override public void run() {
+            flashUntil = 0;
+            noPhoneUntil = SystemClock.uptimeMillis() + NO_PHONE_MS;
+            Wave.log("hud: No phone");
+            render();
+        }});
+    }
+
     /** Engine state each analysed frame: listening until (uptime ms) and
      *  palm hold progress 0..1. Any thread; cheap when nothing changed. */
     void engineState(final long listeningUntil, final float palm) {
@@ -86,8 +99,9 @@ final class Hud {
 
     /**
      * Shows each HUD state in turn, for checking it on screen without a hand:
-     * the listening dot for 1.5 s, a palm ring filling over 0.8 s, then the
-     * play or pause flash. Display only; no command is made or sent.
+     * the listening dot for 1.5 s, a palm ring filling over 0.8 s, the play or
+     * pause flash, then the amber "No phone". Display only; no command is
+     * made or sent.
      */
     void preview() {
         Wave.log("hud: preview (display only, nothing sent)");
@@ -110,12 +124,18 @@ final class Hud {
             flashUntil = SystemClock.uptimeMillis() + FLASH_MS;
             render();
         }}, 2400);
+        main.postDelayed(new Runnable() { @Override public void run() {
+            flashUntil = 0;
+            noPhoneUntil = SystemClock.uptimeMillis() + NO_PHONE_MS;
+            render();
+        }}, 3400);
     }
 
     void release() {
         main.post(new Runnable() { @Override public void run() {
             main.removeCallbacks(render);
             flashUntil = 0;
+            noPhoneUntil = 0;
             listenUntil = 0;
             palmProgress = 0;
             previewUntil = 0;
@@ -145,7 +165,10 @@ final class Hud {
         long now = SystemClock.uptimeMillis();
         HudView v = ensureView();
         long next = Long.MAX_VALUE;
-        if (now < flashUntil && flashCmd != null) {
+        if (now < noPhoneUntil) {
+            v.show(HudView.NO_PHONE, null, 0);
+            next = noPhoneUntil;
+        } else if (now < flashUntil && flashCmd != null) {
             v.show(HudView.FLASH, flashCmd, 0);
             next = flashUntil;
         } else if (now < previewUntil) {
@@ -207,7 +230,7 @@ final class Hud {
     // ---- drawing ---------------------------------------------------------------
 
     static final class HudView extends View {
-        static final int DOT = 1, PALM = 2, FLASH = 3;
+        static final int DOT = 1, PALM = 2, FLASH = 3, NO_PHONE = 4;
 
         private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fg = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -215,6 +238,7 @@ final class Hud {
         private final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint amber = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF r = new RectF();
         private final Path path = new Path();
         private final float d;
@@ -240,6 +264,9 @@ final class Hud {
             text.setColor(Color.WHITE);
             text.setTextSize(22 * d);
             text.setFakeBoldText(true);
+            amber.setColor(Color.rgb(255, 179, 0));
+            amber.setTextSize(22 * d);
+            amber.setFakeBoldText(true);
         }
 
         void show(int m, Cmd c, float p) {
@@ -272,6 +299,24 @@ final class Hud {
                 c.drawPath(path, fg);
                 c.drawRect(cx + 0.3f * u, cy - u, cx + 0.75f * u, cy + u, fg);
                 c.drawRect(cx + 1.15f * u, cy - u, cx + 1.6f * u, cy + u, fg);
+                return;
+            }
+            if (mode == NO_PHONE) {
+                // Nothing was sent: an amber pill, a crossed-out link mark and
+                // the words.
+                r.set(0, 0, w, h);
+                c.drawRoundRect(r, h / 2f, h / 2f, bg);
+                float ix = h * 0.55f, u = h * 0.16f;
+                amber.setStyle(Paint.Style.STROKE);
+                amber.setStrokeWidth(3 * d);
+                c.drawCircle(ix, cy, 1.4f * u, amber);
+                c.drawLine(ix - u, cy + u, ix + u, cy - u, amber);
+                amber.setStyle(Paint.Style.FILL);
+                String label = "No phone";
+                float tw = amber.measureText(label);
+                float left = h * 1.05f;
+                float x = left + Math.max(0, (w - left - h * 0.4f - tw) / 2f);
+                c.drawText(label, x, cy - (amber.descent() + amber.ascent()) / 2f, amber);
                 return;
             }
             if (mode != FLASH || cmd == null) return;
